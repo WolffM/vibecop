@@ -9,7 +9,7 @@
 # Usage in caller repo:
 #   jobs:
 #     vibeCop:
-#       uses: <OWNER>/vibeCop/.github/workflows/reusable-analyze.yml@main
+#       uses: WolffM/vibecop/.github/workflows/reusable-analyze.yml@main
 #       with:
 #         cadence: "weekly"
 #       secrets:
@@ -131,7 +131,7 @@ jobs:
       - name: Checkout vibeCop
         uses: actions/checkout@v4
         with:
-          repository: <OWNER>/vibeCop
+          repository: WolffM/vibecop
           path: .vibecop
           ref: main
 

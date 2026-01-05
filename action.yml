@@ -1,0 +1,152 @@
+name: "vibeCop"
+description: "Unified static analysis with intelligent issue creation for AI-driven development"
+author: "WolffM"
+
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  cadence:
+    description: "Analysis cadence: daily, weekly, or monthly"
+    required: false
+    default: "weekly"
+  severity_threshold:
+    description: "Minimum severity for issues: critical, high, medium, low, info"
+    required: false
+    default: "info"
+  confidence_threshold:
+    description: "Minimum confidence for issues: high, medium, low"
+    required: false
+    default: "low"
+  merge_strategy:
+    description: "How to merge findings: none, same-file, same-rule, same-linter, same-tool"
+    required: false
+    default: "same-linter"
+  skip_issues:
+    description: "Skip GitHub issue creation/updates"
+    required: false
+    default: "false"
+  config_path:
+    description: "Path to vibecop.yml config file"
+    required: false
+    default: "vibecop.yml"
+  github_token:
+    description: "GitHub token for issue management"
+    required: true
+
+outputs:
+  total_findings:
+    description: "Total number of findings"
+    value: ${{ steps.analyze.outputs.total_findings }}
+  issues_created:
+    description: "Number of issues created"
+    value: ${{ steps.analyze.outputs.issues_created }}
+  issues_updated:
+    description: "Number of issues updated"
+    value: ${{ steps.analyze.outputs.issues_updated }}
+  issues_closed:
+    description: "Number of issues closed"
+    value: ${{ steps.analyze.outputs.issues_closed }}
+  sarif_path:
+    description: "Path to generated SARIF file"
+    value: ${{ steps.analyze.outputs.sarif_path }}
+  llm_json_path:
+    description: "Path to generated LLM JSON file"
+    value: ${{ steps.analyze.outputs.llm_json_path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9
+
+    - name: Install vibeCop dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}
+        pnpm install --frozen-lockfile
+
+    - name: Setup Trunk
+      uses: trunk-io/trunk-action/setup@v1
+
+    - name: Setup Python (for Semgrep)
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install Semgrep
+      shell: bash
+      run: pip install semgrep
+
+    - name: Run Analysis
+      id: analyze
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        OUTPUT_DIR="${{ github.workspace }}/.vibecop-output"
+
+        # Run the analysis
+        npx tsx ${{ github.action_path }}/scripts/analyze.ts \
+          --root "${{ github.workspace }}" \
+          --cadence "${{ inputs.cadence }}" \
+          --config "${{ inputs.config_path }}" \
+          --output "$OUTPUT_DIR" \
+          --severity-threshold "${{ inputs.severity_threshold }}" \
+          --confidence-threshold "${{ inputs.confidence_threshold }}" \
+          --merge-strategy "${{ inputs.merge_strategy }}" \
+          ${{ inputs.skip_issues == 'true' && '--skip-issues' || '' }}
+
+        # Set outputs
+        if [ -f "$OUTPUT_DIR/results.llm.json" ]; then
+          echo "total_findings=$(jq '.summary.totalFindings // 0' $OUTPUT_DIR/results.llm.json)" >> $GITHUB_OUTPUT
+          echo "issues_created=$(jq '.summary.issuesCreated // 0' $OUTPUT_DIR/results.llm.json)" >> $GITHUB_OUTPUT
+          echo "issues_updated=$(jq '.summary.issuesUpdated // 0' $OUTPUT_DIR/results.llm.json)" >> $GITHUB_OUTPUT
+          echo "issues_closed=$(jq '.summary.issuesClosed // 0' $OUTPUT_DIR/results.llm.json)" >> $GITHUB_OUTPUT
+        else
+          echo "total_findings=0" >> $GITHUB_OUTPUT
+          echo "issues_created=0" >> $GITHUB_OUTPUT
+          echo "issues_updated=0" >> $GITHUB_OUTPUT
+          echo "issues_closed=0" >> $GITHUB_OUTPUT
+        fi
+
+        echo "sarif_path=$OUTPUT_DIR/results.sarif" >> $GITHUB_OUTPUT
+        echo "llm_json_path=$OUTPUT_DIR/results.llm.json" >> $GITHUB_OUTPUT
+
+    - name: Upload SARIF to Code Scanning
+      if: hashFiles('.vibecop-output/results.sarif') != ''
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: .vibecop-output/results.sarif
+        category: vibeCop
+
+    - name: Generate Summary
+      shell: bash
+      run: |
+        OUTPUT_DIR="${{ github.workspace }}/.vibecop-output"
+
+        if [ -f "$OUTPUT_DIR/results.llm.json" ]; then
+          echo "## 🛡️ vibeCop Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          TOTAL=$(jq '.summary.totalFindings // 0' $OUTPUT_DIR/results.llm.json)
+          CREATED=$(jq '.summary.issuesCreated // 0' $OUTPUT_DIR/results.llm.json)
+          UPDATED=$(jq '.summary.issuesUpdated // 0' $OUTPUT_DIR/results.llm.json)
+          CLOSED=$(jq '.summary.issuesClosed // 0' $OUTPUT_DIR/results.llm.json)
+          
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Findings | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Issues Created | $CREATED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Issues Updated | $UPDATED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Issues Closed | $CLOSED |" >> $GITHUB_STEP_SUMMARY
+        fi

@@ -2,69 +2,108 @@
 
 > Cross-repo static analysis + actionable GitHub issue generator for AI agents
 
-vibeCop is a **reusable GitHub Actions workflow** that runs static analysis on any repository and turns findings into **actionable GitHub Issues** designed to be resolved by AI coding agents (like Codex).
+vibeCop is a **GitHub Action** that runs static analysis on any repository and turns findings into **actionable GitHub Issues** designed to be resolved by AI coding agents (like Codex).
 
 ## Features
 
-- 🔍 **Multi-tool analysis**: Trunk, ESLint, TypeScript, jscpd, and more
+- 🔍 **Multi-tool analysis**: Trunk, TypeScript, jscpd, dependency-cruiser, knip, Semgrep
 - 📊 **SARIF output**: Results appear in GitHub Code Scanning
 - 🤖 **AI-friendly issues**: Structured with suggested fixes and acceptance criteria
 - 🔁 **Deduplication**: Stable fingerprints prevent duplicate issues across runs
+- 🔄 **Auto-cleanup**: Closes resolved and duplicate issues automatically
 - ⚙️ **Configurable**: Per-repo overrides via `vibecop.yml`
 - 📅 **Cadence-aware**: Schedule heavy tools for weekly/monthly runs only
 
 ## Quick Start
 
-### 1. Add the workflow to your repository
+### Option 1: GitHub Action (Recommended)
 
 Create `.github/workflows/vibecop.yml`:
 
 ```yaml
-name: vibeCop (Scheduled)
+name: vibeCop Analysis
 
 on:
   schedule:
-    - cron: '17 3 * * 1'  # Weekly: Mondays 03:17 UTC
+    - cron: "0 3 * * 1" # Weekly: Mondays 3am UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: WolffM/vibecop@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          cadence: "weekly"
+          severity_threshold: "low"
+          merge_strategy: "same-linter"
+```
+
+### Option 2: Reusable Workflow
+
+```yaml
+name: vibeCop Analysis
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
   workflow_dispatch: {}
 
 jobs:
   vibeCop:
-    uses: <OWNER>/vibeCop/.github/workflows/reusable-analyze.yml@main
+    uses: WolffM/vibecop/.github/workflows/reusable-analyze.yml@main
     with:
-      cadence: 'weekly'
+      cadence: "weekly"
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Note**: Replace `<OWNER>` with your GitHub organization or username.
+## Configuration
 
-### 2. (Optional) Add repo-specific configuration
+### Action Inputs
 
-Create `vibecop.yml` at your repository root:
+| Input                  | Description                                                  | Default       |
+| ---------------------- | ------------------------------------------------------------ | ------------- |
+| `github_token`         | GitHub token for issues/SARIF                                | **Required**  |
+| `cadence`              | `daily`, `weekly`, or `monthly`                              | `weekly`      |
+| `severity_threshold`   | Min severity: `critical`, `high`, `medium`, `low`, `info`    | `info`        |
+| `confidence_threshold` | Min confidence: `high`, `medium`, `low`                      | `low`         |
+| `merge_strategy`       | `none`, `same-file`, `same-rule`, `same-linter`, `same-tool` | `same-linter` |
+| `skip_issues`          | Skip issue creation (`true`/`false`)                         | `false`       |
+| `config_path`          | Path to `vibecop.yml`                                        | `vibecop.yml` |
+
+### Repo Configuration (vibecop.yml)
+
+Create `vibecop.yml` at your repository root for fine-tuned control:
 
 ```yaml
 version: 1
 
 issues:
-  severity_threshold: "medium"    # low | medium | high | critical
-  confidence_threshold: "high"    # low | medium | high
+  severity_threshold: "medium" # Override action input
+  confidence_threshold: "high"
   max_new_per_run: 25
+  close_resolved: true # Auto-close fixed issues
 
 tools:
   jscpd:
-    enabled: weekly
+    enabled: weekly # Only run on weekly cadence
     min_tokens: 70
   knip:
-    enabled: monthly
+    enabled: monthly # Only run on monthly cadence
+  semgrep:
+    enabled: true # Always run
 ```
-
-### 3. Let it run!
-
-On the next scheduled run (or trigger manually), vibeCop will:
-1. Detect your repo's language and tooling
-2. Run appropriate linters and analyzers
-3. Generate SARIF for GitHub Code Scanning
-4. Create issues for high-confidence findings
 
 ## How It Works
 
@@ -93,6 +132,7 @@ On the next scheduled run (or trigger manually), vibeCop will:
 ### Fingerprinting
 
 Findings are fingerprinted using:
+
 - Tool name
 - Rule ID
 - File path
@@ -105,13 +145,13 @@ This allows vibeCop to track issues across minor code changes.
 
 ### Workflow Inputs
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `cadence` | `weekly` | Analysis frequency: `daily`, `weekly`, `monthly` |
-| `trunk_arguments` | `check` | Arguments for Trunk |
-| `issue_label` | `vibeCop` | Primary label for issues |
-| `config_path` | `vibecop.yml` | Path to config file |
-| `skip_issues` | `false` | Skip issue creation |
+| Input             | Default       | Description                                      |
+| ----------------- | ------------- | ------------------------------------------------ |
+| `cadence`         | `weekly`      | Analysis frequency: `daily`, `weekly`, `monthly` |
+| `trunk_arguments` | `check`       | Arguments for Trunk                              |
+| `issue_label`     | `vibeCop`     | Primary label for issues                         |
+| `config_path`     | `vibecop.yml` | Path to config file                              |
+| `skip_issues`     | `false`       | Skip issue creation                              |
 
 ### vibecop.yml Schema
 
@@ -119,8 +159,8 @@ This allows vibeCop to track issues across minor code changes.
 version: 1
 
 schedule:
-  cadence: weekly           # Caller workflow controls actual schedule
-  deep_scan: false          # Enable all tools regardless of cadence
+  cadence: weekly # Caller workflow controls actual schedule
+  deep_scan: false # Enable all tools regardless of cadence
 
 trunk:
   enabled: true
@@ -128,7 +168,7 @@ trunk:
 
 tools:
   tsc:
-    enabled: auto           # auto | true | false | daily | weekly | monthly
+    enabled: auto # auto | true | false | daily | weekly | monthly
   eslint:
     enabled: auto
   prettier:
@@ -149,9 +189,9 @@ issues:
   enabled: true
   label: "vibeCop"
   max_new_per_run: 25
-  severity_threshold: "medium"     # Minimum severity
-  confidence_threshold: "high"     # Minimum confidence
-  close_resolved: false            # Auto-close when finding disappears
+  severity_threshold: "medium" # Minimum severity
+  confidence_threshold: "high" # Minimum confidence
+  close_resolved: false # Auto-close when finding disappears
   assignees: []
 
 output:
@@ -167,43 +207,45 @@ llm:
 ## Tool Enablement
 
 Tools can be enabled with:
+
 - `true` / `false`: Always on/off
 - `auto`: Run if config file detected (e.g., `eslintrc`, `tsconfig.json`)
 - `daily` / `weekly` / `monthly`: Run only on that cadence or slower
 
-| Tool | Default | Detects |
-|------|---------|---------|
-| Trunk | enabled | Always |
-| TypeScript | auto | `tsconfig.json` |
-| ESLint | auto | ESLint config files |
-| Prettier | auto | Prettier config files |
-| jscpd | weekly | Always (on weekly+) |
-| dependency-cruiser | weekly | `.dependency-cruiser.js` |
-| knip | monthly | `knip.json` |
-| semgrep | monthly | Always (on monthly) |
+| Tool               | Default | Detects                  |
+| ------------------ | ------- | ------------------------ |
+| Trunk              | enabled | Always                   |
+| TypeScript         | auto    | `tsconfig.json`          |
+| ESLint             | auto    | ESLint config files      |
+| Prettier           | auto    | Prettier config files    |
+| jscpd              | weekly  | Always (on weekly+)      |
+| dependency-cruiser | weekly  | `.dependency-cruiser.js` |
+| knip               | monthly | `knip.json`              |
+| semgrep            | monthly | Always (on monthly)      |
 
 ## Severity & Confidence
 
 ### Severity Levels
 
-| Level | Description |
-|-------|-------------|
-| `critical` | Security vulnerabilities, data loss risks |
-| `high` | Type errors, circular dependencies, forbidden imports |
-| `medium` | Code smells, unused code, complexity |
-| `low` | Style issues, minor suggestions |
+| Level      | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `critical` | Security vulnerabilities, data loss risks             |
+| `high`     | Type errors, circular dependencies, forbidden imports |
+| `medium`   | Code smells, unused code, complexity                  |
+| `low`      | Style issues, minor suggestions                       |
 
 ### Confidence Levels
 
-| Level | Description |
-|-------|-------------|
-| `high` | Definite issues (type errors, exact duplicates) |
-| `medium` | Likely issues, may need context |
-| `low` | Suggestions, style preferences |
+| Level    | Description                                     |
+| -------- | ----------------------------------------------- |
+| `high`   | Definite issues (type errors, exact duplicates) |
+| `medium` | Likely issues, may need context                 |
+| `low`    | Suggestions, style preferences                  |
 
 ### Default Thresholds
 
 Issues are created when:
+
 - `severity >= medium` AND `confidence >= high`
 
 Adjust with `issues.severity_threshold` and `issues.confidence_threshold`.
@@ -220,6 +262,7 @@ Issues created by vibeCop include:
 - **Fingerprint**: Hidden marker for deduplication
 
 Example issue body:
+
 ```markdown
 ## Summary
 
@@ -240,11 +283,13 @@ Variable 'x' is declared but never used.
 **Goal:** Remove unused variable declarations
 
 **Steps:**
+
 1. Identify the unused variable from the error message
 2. Determine if it should be removed or if it reveals missing functionality
 3. Remove the variable declaration if unused
 
 **Acceptance Criteria:**
+
 - [ ] No unused variable warnings in affected file
 - [ ] Tests continue to pass
 ```
@@ -253,12 +298,12 @@ Variable 'x' is declared but never used.
 
 Each run produces:
 
-| File | Description |
-|------|-------------|
-| `results.sarif` | SARIF 2.1.0 for GitHub Code Scanning |
-| `results.llm.json` | Structured findings for AI agents |
-| `findings.json` | Raw findings array |
-| `context.json` | Run context and repo profile |
+| File               | Description                          |
+| ------------------ | ------------------------------------ |
+| `results.sarif`    | SARIF 2.1.0 for GitHub Code Scanning |
+| `results.llm.json` | Structured findings for AI agents    |
+| `findings.json`    | Raw findings array                   |
+| `context.json`     | Run context and repo profile         |
 
 ### LLM JSON Schema
 
@@ -305,12 +350,12 @@ Each run produces:
 Download the artifact and process programmatically:
 
 ```typescript
-const results = await fetchArtifact('vibecop-results');
-const llmJson = JSON.parse(results['results.llm.json']);
+const results = await fetchArtifact("vibecop-results");
+const llmJson = JSON.parse(results["results.llm.json"]);
 
 // Pick actionable findings sorted by priority
 const actionable = llmJson.findings
-  .filter(f => f.confidence === 'high')
+  .filter((f) => f.confidence === "high")
   .sort((a, b) => severityOrder[b.severity] - severityOrder[a.severity]);
 
 // Work through issues
@@ -335,6 +380,7 @@ permissions:
 ### Too many issues created
 
 Reduce noise by:
+
 1. Increasing `severity_threshold` to `high`
 2. Reducing `max_new_per_run`
 3. Disabling noisy tools
@@ -342,6 +388,7 @@ Reduce noise by:
 ### How to suppress a finding
 
 Options:
+
 1. Fix the issue (recommended)
 2. Add inline suppression comment (tool-specific)
 3. Configure tool to ignore the rule
@@ -350,6 +397,7 @@ Options:
 ### Monorepo behavior
 
 vibeCop detects monorepos via:
+
 - `pnpm-workspace.yaml`
 - `package.json` workspaces
 - `turbo.json` / `nx.json` / `lerna.json`
@@ -359,6 +407,7 @@ Analysis runs at the repo root and covers all packages.
 ### Rate limiting
 
 vibeCop respects GitHub API limits:
+
 - Issues are capped at `max_new_per_run` per execution
 - API calls include small delays
 - Use `GITHUB_TOKEN` (not PAT) for repo-scoped limits
@@ -391,12 +440,12 @@ npx tsx scripts/analyze.ts --root /path/to/repo --cadence weekly --skip-issues
 
 ### Scripts
 
-| Script | Description |
-|--------|-------------|
-| `analyze.ts` | Main orchestrator |
-| `repo-detect.ts` | Detect repo profile |
-| `build-sarif.ts` | Generate SARIF output |
-| `build-llm-json.ts` | Generate LLM JSON output |
+| Script               | Description                 |
+| -------------------- | --------------------------- |
+| `analyze.ts`         | Main orchestrator           |
+| `repo-detect.ts`     | Detect repo profile         |
+| `build-sarif.ts`     | Generate SARIF output       |
+| `build-llm-json.ts`  | Generate LLM JSON output    |
 | `sarif-to-issues.ts` | Create/update GitHub issues |
 
 ## License
