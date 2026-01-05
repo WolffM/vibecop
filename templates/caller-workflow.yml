@@ -71,6 +71,14 @@ on:
           - same-rule
           - same-tool
 
+# ═══════════════════════════════════════════════════════════════════
+# PERMISSIONS - Required for issue creation and SARIF upload
+# ═══════════════════════════════════════════════════════════════════
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+
 jobs:
   analyze:
     # ═══════════════════════════════════════════════════════════════

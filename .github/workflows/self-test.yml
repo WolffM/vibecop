@@ -51,6 +51,11 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+
 jobs:
   analyze:
     uses: ./.github/workflows/reusable-analyze.yml
