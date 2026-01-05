@@ -35,6 +35,7 @@ import type {
   RunContext,
   VibeCopConfig,
 } from "./types.js";
+import { DEFAULT_CONFIG } from "./types.js";
 
 // ============================================================================
 // Configuration Loading
@@ -591,13 +592,13 @@ export async function analyze(
   console.log("");
 
   // Merge CLI threshold options into config (CLI takes precedence)
-  const mergedConfig = {
+  const mergedConfig: VibeCopConfig = {
     ...config,
     issues: {
+      ...DEFAULT_CONFIG.issues!,
       ...config.issues,
-      severity_threshold: severityThreshold,
-      confidence_threshold: confidenceThreshold,
-      merge_strategy: mergeStrategy,
+      severity_threshold: severityThreshold as any,
+      confidence_threshold: confidenceThreshold as any,
     },
   };
 
