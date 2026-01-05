@@ -8,7 +8,6 @@
 const unusedVariable = 'I am never used';
 
 // no-var: Use of var instead of let/const
-// @ts-expect-error - Intentionally unused for testing ESLint rules
 var oldStyleVariable = 'should use let or const';
 
 // prefer-const: Variable never reassigned
