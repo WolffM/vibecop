@@ -31,7 +31,6 @@ import { meetsThresholds } from './scoring.js';
 import type {
   ExistingIssue,
   Finding,
-  IssuesConfig,
   RunContext,
 } from './types.js';
 

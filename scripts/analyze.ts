@@ -8,7 +8,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { execSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { detectRepo } from './repo-detect.js';
 import {
@@ -28,7 +28,6 @@ import type {
   RepoProfile,
   RunContext,
   VibeCopConfig,
-  DEFAULT_CONFIG,
 } from './types.js';
 
 // ============================================================================
@@ -75,9 +74,10 @@ function parseSimpleYaml(content: string): VibeCopConfig {
 
   try {
     // Remove comments and parse as basic key-value
-    const lines = content.split('\n').filter((l) => !l.trim().startsWith('#'));
     // For MVP, just return defaults - config parsing would need yaml package
+    const _lines = content.split('\n').filter((l) => !l.trim().startsWith('#'));
     console.log('Note: Full YAML parsing requires yaml package. Using defaults.');
+    void _lines; // TODO: implement proper YAML parsing
   } catch {
     // Fallback to defaults
   }
@@ -90,7 +90,7 @@ function parseSimpleYaml(content: string): VibeCopConfig {
  */
 function shouldRunTool(
   enabled: boolean | 'auto' | Cadence | undefined,
-  profile: RepoProfile,
+  _profile: RepoProfile,
   currentCadence: Cadence,
   toolDetector: () => boolean
 ): boolean {
@@ -122,23 +122,23 @@ function runTrunk(rootPath: string, args: string[] = ['check']): Finding[] {
   console.log('Running Trunk...');
 
   try {
-    const result = spawnSync('trunk', [...args, '--output=json'], {
+    const trunkResult = spawnSync('trunk', [...args, '--output=json'], {
       cwd: rootPath,
       encoding: 'utf-8',
       maxBuffer: 50 * 1024 * 1024, // 50MB
     });
 
-    if (result.stdout) {
+    if (trunkResult.stdout) {
       try {
-        const output = JSON.parse(result.stdout);
+        const output = JSON.parse(trunkResult.stdout);
         return parseTrunkOutput(output);
       } catch {
         console.warn('Failed to parse Trunk JSON output');
       }
     }
 
-    if (result.stderr) {
-      console.log('Trunk stderr:', result.stderr);
+    if (trunkResult.stderr) {
+      console.log('Trunk stderr:', trunkResult.stderr);
     }
   } catch (error) {
     console.warn('Trunk not available or failed:', error);
@@ -210,7 +210,8 @@ function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
   try {
     const outputPath = join(rootPath, '.vibecop-output', 'jscpd.json');
 
-    const result = spawnSync(
+    // Run jscpd - we don't need the result, just the output file
+    spawnSync(
       'npx',
       [
         'jscpd',

@@ -7,7 +7,7 @@
  */
 
 import { Octokit } from '@octokit/rest';
-import type { ExistingIssue, IssueCreateParams, IssueMetadata, IssueUpdateParams } from './types.js';
+import type { ExistingIssue, IssueCreateParams, IssueUpdateParams } from './types.js';
 import { extractFingerprintFromBody, extractRunMetadata } from './fingerprints.js';
 
 // ============================================================================

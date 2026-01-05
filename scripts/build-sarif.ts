@@ -7,7 +7,6 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type {
   Finding,
   RunContext,

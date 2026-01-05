@@ -27,7 +27,6 @@ import {
 import type {
   EslintFileResult,
   Finding,
-  JscpdClone,
   JscpdOutput,
   Location,
   TscDiagnostic,
