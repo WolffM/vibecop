@@ -1,0 +1,26 @@
+# YAML Issues Test File
+# This file intentionally has yamllint violations
+
+bad_indentation:
+   wrong: spaces  # 3 spaces instead of 2
+  also_wrong: value
+
+no_newline_at_end: true
+trailing_spaces: "value"   
+duplicate_key: first
+duplicate_key: second
+
+long_line: "this is a really really really really really really really really really really really really really really long line that exceeds limits"
+
+truthy_value: yes  # should be true
+falsy_value: no    # should be false
+
+unquoted_special: @special_value
+
+empty_value:
+
+list_formatting:
+  -item1  # no space after dash
+  - item2
+
+colon_issue:key_without_space: value

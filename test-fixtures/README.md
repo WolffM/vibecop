@@ -8,22 +8,23 @@ These files trigger at least one issue per tool, which remain open as demo issue
 | File                                          | Tool(s)                | Issues                                                |
 | --------------------------------------------- | ---------------------- | ----------------------------------------------------- |
 | `typescript-errors.ts`                        | **tsc**                | Type mismatches, missing properties, implicit any     |
-| `eslint-issues.ts`                            | **Trunk/ESLint**       | `no-unused-vars`, `no-var`, `prefer-const`            |
+| `markdown-issues.md`                          | **Trunk/markdownlint** | Heading format, line length, blank lines              |
+| `yaml-issues.yaml`                            | **Trunk/yamllint**     | Indentation, duplicate keys, truthy values            |
 | `duplicate-code-a.ts` + `duplicate-code-b.ts` | **jscpd**              | ~60 lines of duplicated validation code               |
 | `circular-dep-a.ts` + `circular-dep-b.ts`     | **dependency-cruiser** | Circular import dependency                            |
 | `unused-exports.ts`                           | **knip**               | Exported but never imported functions, classes, types |
-| `security-issues.ts`                          | **Semgrep**            | `eval()`, command injection, hardcoded secrets        |
+| `security-issues.ts`                          | **Semgrep**            | `eval()`, command injection patterns                  |
 
 ## Tool Coverage Summary
 
-| Tool                   | Findings    | Description                                   |
-| ---------------------- | ----------- | --------------------------------------------- |
-| **Trunk**              | ✅ Multiple | ESLint, yamllint, osv-scanner vulnerabilities |
-| **tsc**                | ✅ Multiple | TypeScript compiler errors                    |
-| **jscpd**              | ✅ 1+       | Duplicate code blocks                         |
-| **dependency-cruiser** | ✅ 1        | Circular dependency                           |
-| **knip**               | ✅ Multiple | Unused exports and dependencies               |
-| **Semgrep**            | ✅ 1+       | Security vulnerabilities                      |
+| Tool                   | Findings    | Description                         |
+| ---------------------- | ----------- | ----------------------------------- |
+| **Trunk**              | ✅ Multiple | markdownlint, yamllint, osv-scanner |
+| **tsc**                | ✅ Multiple | TypeScript compiler errors          |
+| **jscpd**              | ✅ 1+       | Duplicate code blocks               |
+| **dependency-cruiser** | ✅ 1        | Circular dependency                 |
+| **knip**               | ✅ Multiple | Unused exports and dependencies     |
+| **Semgrep**            | ✅ 1+       | Security vulnerabilities            |
 
 ## Running Analysis
 
