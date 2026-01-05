@@ -21,38 +21,53 @@ on:
   workflow_call:
     inputs:
       cadence:
-        description: 'Analysis cadence: daily, weekly, or monthly'
+        description: "Analysis cadence: daily, weekly, or monthly"
         required: false
-        default: 'weekly'
+        default: "weekly"
         type: string
       trunk_arguments:
-        description: 'Arguments to pass to trunk check'
+        description: "Arguments to pass to trunk check"
         required: false
-        default: 'check'
+        default: "check"
         type: string
       issue_label:
-        description: 'Label for created issues'
+        description: "Label for created issues"
         required: false
-        default: 'vibeCop'
+        default: "vibeCop"
         type: string
       config_path:
-        description: 'Path to vibecop.yml config file'
+        description: "Path to vibecop.yml config file"
         required: false
-        default: 'vibecop.yml'
+        default: "vibecop.yml"
         type: string
       deep_scan:
-        description: 'Enable all analysis tools regardless of cadence'
+        description: "Enable all analysis tools regardless of cadence"
         required: false
         default: false
         type: boolean
       skip_issues:
-        description: 'Skip GitHub issue creation/updates'
+        description: "Skip GitHub issue creation/updates"
         required: false
         default: false
         type: boolean
+      severity_threshold:
+        description: "Minimum severity for issue creation: critical, high, medium, low, or info (default: all)"
+        required: false
+        default: "info"
+        type: string
+      confidence_threshold:
+        description: "Minimum confidence for issue creation: high, medium, or low (default: all)"
+        required: false
+        default: "low"
+        type: string
+      artifact_retention_days:
+        description: "Number of days to retain analysis artifacts"
+        required: false
+        default: 14
+        type: number
     secrets:
       GH_TOKEN:
-        description: 'GitHub token for issue management and SARIF upload'
+        description: "GitHub token for issue management and SARIF upload"
         required: true
 
 permissions:
@@ -118,8 +133,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
           cache-dependency-path: .vibecop/pnpm-lock.yaml
 
       - name: Setup pnpm
@@ -140,7 +155,7 @@ jobs:
       - name: Setup Python (for Semgrep)
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Semgrep
         run: pip install semgrep
@@ -159,6 +174,8 @@ jobs:
             --cadence "${{ inputs.cadence }}" \
             --config "${{ inputs.config_path }}" \
             --output "${{ github.workspace }}/.vibecop-output" \
+            --severity-threshold "${{ inputs.severity_threshold }}" \
+            --confidence-threshold "${{ inputs.confidence_threshold }}" \
             ${{ inputs.skip_issues && '--skip-issues' || '' }}
 
       - name: Upload SARIF to Code Scanning

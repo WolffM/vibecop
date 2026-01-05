@@ -12,7 +12,6 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { detectRepo } from "./repo-detect.js";
 import {
-  parseEslintOutput,
   parseTscTextOutput,
   parseTscOutput,
   parseJscpdOutput,
@@ -218,39 +217,8 @@ function runTsc(rootPath: string): Finding[] {
   return [];
 }
 
-/**
- * Run ESLint.
- */
-function runEslint(rootPath: string): Finding[] {
-  console.log("Running ESLint...");
-
-  try {
-    const result = spawnSync(
-      "npx",
-      ["eslint", ".", "--format=json", "--max-warnings=999999"],
-      {
-        cwd: rootPath,
-        encoding: "utf-8",
-        shell: true,
-        maxBuffer: 50 * 1024 * 1024,
-      },
-    );
-
-    const output = result.stdout;
-    if (output) {
-      try {
-        const eslintResults = JSON.parse(output);
-        return parseEslintOutput(eslintResults);
-      } catch {
-        console.warn("Failed to parse ESLint JSON output");
-      }
-    }
-  } catch (error) {
-    console.warn("ESLint failed:", error);
-  }
-
-  return [];
-}
+// NOTE: ESLint is handled by Trunk, so runEslint has been removed
+// to avoid duplicate findings. Trunk runs ESLint internally.
 
 /**
  * Run jscpd (copy-paste detector).
@@ -456,6 +424,8 @@ export interface AnalyzeOptions {
   cadence?: Cadence;
   outputDir?: string;
   skipIssues?: boolean;
+  severityThreshold?: string;
+  confidenceThreshold?: string;
 }
 
 export interface AnalyzeResult {
@@ -478,6 +448,8 @@ export async function analyze(
   const rootPath = options.rootPath || process.cwd();
   const configPath = options.configPath || "vibecop.yml";
   const cadence = options.cadence || "weekly";
+  const severityThreshold = options.severityThreshold || "info";
+  const confidenceThreshold = options.confidenceThreshold || "low";
   const outputDir = options.outputDir || join(rootPath, ".vibecop-output");
 
   // Ensure output directory exists
@@ -531,19 +503,9 @@ export async function analyze(
     console.log(`  TypeScript: ${tscFindings.length} findings`);
   }
 
-  // ESLint
-  if (
-    shouldRunTool(
-      config.tools?.eslint?.enabled,
-      profile,
-      cadence,
-      () => profile.hasEslint,
-    )
-  ) {
-    const eslintFindings = runEslint(rootPath);
-    allFindings.push(...eslintFindings);
-    console.log(`  ESLint: ${eslintFindings.length} findings`);
-  }
+  // NOTE: ESLint is handled by Trunk, so we don't run it separately
+  // to avoid duplicate findings. If you need standalone ESLint,
+  // configure it in your vibecop.yml with tools.eslint.enabled: true
 
   // jscpd (weekly/monthly)
   if (
@@ -614,6 +576,16 @@ export async function analyze(
   );
   console.log("");
 
+  // Merge CLI threshold options into config (CLI takes precedence)
+  const mergedConfig = {
+    ...config,
+    issues: {
+      ...config.issues,
+      severity_threshold: severityThreshold,
+      confidence_threshold: confidenceThreshold,
+    },
+  };
+
   // Build context
   const context: RunContext = {
     repo: {
@@ -623,7 +595,7 @@ export async function analyze(
       commit: process.env.GITHUB_SHA || "unknown",
     },
     profile,
-    config,
+    config: mergedConfig,
     cadence,
     runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10),
     workspacePath: rootPath,
@@ -722,6 +694,10 @@ async function main() {
       options.outputDir = args[++i];
     } else if (arg === "--skip-issues") {
       options.skipIssues = true;
+    } else if (arg === "--severity-threshold" && args[i + 1]) {
+      options.severityThreshold = args[++i];
+    } else if (arg === "--confidence-threshold" && args[i + 1]) {
+      options.confidenceThreshold = args[++i];
     }
   }
 
@@ -742,9 +718,4 @@ async function main() {
     console.error("Analysis failed:", error);
     process.exit(1);
   }
-}
-
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(console.error);
 }

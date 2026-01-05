@@ -6,7 +6,7 @@
  * Reference: vibeCop_spec.md sections 6, 7
  */
 
-import { fingerprintFinding } from './fingerprints.js';
+import { fingerprintFinding } from "./fingerprints.js";
 import {
   classifyLayer,
   determineAutofixLevel,
@@ -23,14 +23,14 @@ import {
   mapSemgrepSeverity,
   mapTscConfidence,
   mapTscSeverity,
-} from './scoring.js';
+} from "./scoring.js";
 import type {
   EslintFileResult,
   Finding,
   JscpdOutput,
   Location,
   TscDiagnostic,
-} from './types.js';
+} from "./types.js";
 
 // ============================================================================
 // ESLint Parser
@@ -57,13 +57,13 @@ export function parseEslintOutput(results: EslintFileResult[]): Finding[] {
       const severity = mapEslintSeverity(msg.severity);
       const confidence = mapEslintConfidence(msg.ruleId);
       const hasAutofix = !!msg.fix;
-      const autofix = determineAutofixLevel('eslint', msg.ruleId, hasAutofix);
-      const effort = estimateEffort('eslint', msg.ruleId, 1, hasAutofix);
-      const layer = classifyLayer('eslint', msg.ruleId);
+      const autofix = determineAutofixLevel("eslint", msg.ruleId, hasAutofix);
+      const effort = estimateEffort("eslint", msg.ruleId, 1, hasAutofix);
+      const layer = classifyLayer("eslint", msg.ruleId);
 
-      const finding: Omit<Finding, 'fingerprint'> = {
+      const finding: Omit<Finding, "fingerprint"> = {
         layer,
-        tool: 'eslint',
+        tool: "eslint",
         ruleId: msg.ruleId,
         title: `ESLint: ${msg.ruleId}`,
         message: msg.message,
@@ -72,7 +72,7 @@ export function parseEslintOutput(results: EslintFileResult[]): Finding[] {
         effort,
         autofix,
         locations: [location],
-        labels: ['vibeCop', `tool:eslint`, `severity:${severity}`],
+        labels: ["vibeCop", `tool:eslint`, `severity:${severity}`],
         rawOutput: msg,
       };
 
@@ -108,21 +108,21 @@ export function parseTscOutput(diagnostics: TscDiagnostic[]): Finding[] {
     const ruleId = `TS${diag.code}`;
     const severity = mapTscSeverity(diag.code);
     const confidence = mapTscConfidence(diag.code);
-    const effort = estimateEffort('tsc', ruleId, 1, false);
-    const layer = classifyLayer('tsc', ruleId);
+    const effort = estimateEffort("tsc", ruleId, 1, false);
+    const layer = classifyLayer("tsc", ruleId);
 
-    const finding: Omit<Finding, 'fingerprint'> = {
+    const finding: Omit<Finding, "fingerprint"> = {
       layer,
-      tool: 'tsc',
+      tool: "tsc",
       ruleId,
-      title: `TypeScript Error: ${ruleId}`,
+      title: `TypeScript: ${ruleId}`, // Simplified title
       message: diag.message,
       severity,
       confidence,
       effort,
-      autofix: 'none',
+      autofix: "none",
       locations: [location],
-      labels: ['vibeCop', 'tool:tsc', `severity:${severity}`],
+      labels: ["vibeCop", "tool:tsc", `severity:${severity}`],
       rawOutput: diag,
     };
 
@@ -141,7 +141,7 @@ export function parseTscOutput(diagnostics: TscDiagnostic[]): Finding[] {
  */
 export function parseTscTextOutput(output: string): TscDiagnostic[] {
   const diagnostics: TscDiagnostic[] = [];
-  const lines = output.split('\n');
+  const lines = output.split("\n");
 
   // Match: file.ts(line,col): error TSxxxx: message
   const pattern = /^(.+?)\((\d+),(\d+)\):\s*error\s+TS(\d+):\s*(.+)$/;
@@ -191,21 +191,21 @@ export function parseJscpdOutput(output: JscpdOutput): Finding[] {
 
     const severity = mapJscpdSeverity(clone.lines, clone.tokens);
     const confidence = mapJscpdConfidence(clone.tokens);
-    const effort = estimateEffort('jscpd', 'duplicate-code', 2, false);
+    const effort = estimateEffort("jscpd", "duplicate-code", 2, false);
 
-    const finding: Omit<Finding, 'fingerprint'> = {
-      layer: 'code',
-      tool: 'jscpd',
-      ruleId: 'duplicate-code',
+    const finding: Omit<Finding, "fingerprint"> = {
+      layer: "code",
+      tool: "jscpd",
+      ruleId: "duplicate-code",
       title: `Duplicate Code: ${clone.lines} lines`,
       message: `Found ${clone.lines} duplicate lines (${clone.tokens} tokens) between ${clone.firstFile.name} and ${clone.secondFile.name}`,
       severity,
       confidence,
       effort,
-      autofix: 'none',
+      autofix: "none",
       locations: [location1, location2],
       evidence: clone.fragment ? { snippet: clone.fragment } : undefined,
-      labels: ['vibeCop', 'tool:jscpd', `severity:${severity}`, 'duplicates'],
+      labels: ["vibeCop", "tool:jscpd", `severity:${severity}`, "duplicates"],
       rawOutput: clone,
     };
 
@@ -258,26 +258,31 @@ export function parseDepcruiseOutput(output: DepcruiseOutput): Finding[] {
     const violationType = violation.type || violation.rule.name;
     const severity = mapDepcruiseSeverity(violationType);
     const confidence = mapDepcruiseConfidence(violationType);
-    const effort = estimateEffort('dependency-cruiser', violationType, 1, false);
+    const effort = estimateEffort(
+      "dependency-cruiser",
+      violationType,
+      1,
+      false,
+    );
 
     let message = `Dependency violation: ${violation.from} -> ${violation.to}`;
     if (violation.cycle) {
-      const cycleNames = violation.cycle.map(c => c.name);
-      message = `Circular dependency detected: ${[violation.from, ...cycleNames].join(' -> ')}`;
+      const cycleNames = violation.cycle.map((c) => c.name);
+      message = `Circular dependency detected: ${[violation.from, ...cycleNames].join(" -> ")}`;
     }
 
-    const finding: Omit<Finding, 'fingerprint'> = {
-      layer: 'architecture',
-      tool: 'dependency-cruiser',
+    const finding: Omit<Finding, "fingerprint"> = {
+      layer: "architecture",
+      tool: "dependency-cruiser",
       ruleId: violation.rule.name,
       title: `Dependency: ${violation.rule.name}`,
       message,
       severity,
       confidence,
       effort,
-      autofix: 'none',
+      autofix: "none",
       locations: [location],
-      labels: ['vibeCop', 'tool:dependency-cruiser', `severity:${severity}`],
+      labels: ["vibeCop", "tool:dependency-cruiser", `severity:${severity}`],
       rawOutput: violation,
     };
 
@@ -329,7 +334,7 @@ export function parseKnipOutput(output: KnipOutput): Finding[] {
 
   // Handle unused files
   for (const file of output.files || []) {
-    const finding = createKnipFinding('files', file, 'unused-file', 1);
+    const finding = createKnipFinding("files", file, "unused-file", 1);
     findings.push(finding);
   }
 
@@ -339,32 +344,44 @@ export function parseKnipOutput(output: KnipOutput): Finding[] {
 
     // Unused exports
     for (const exp of fileIssues.exports || []) {
-      findings.push(createKnipFinding('exports', filePath, exp.name, exp.line ?? 1));
+      findings.push(
+        createKnipFinding("exports", filePath, exp.name, exp.line ?? 1),
+      );
     }
 
     // Unused types
     for (const type of fileIssues.types || []) {
-      findings.push(createKnipFinding('types', filePath, type.name, type.line ?? 1));
+      findings.push(
+        createKnipFinding("types", filePath, type.name, type.line ?? 1),
+      );
     }
 
     // Unused dependencies
     for (const dep of fileIssues.dependencies || []) {
-      findings.push(createKnipFinding('dependencies', filePath, dep.name, dep.line ?? 1));
+      findings.push(
+        createKnipFinding("dependencies", filePath, dep.name, dep.line ?? 1),
+      );
     }
 
     // Unused dev dependencies
     for (const dep of fileIssues.devDependencies || []) {
-      findings.push(createKnipFinding('devDependencies', filePath, dep.name, dep.line ?? 1));
+      findings.push(
+        createKnipFinding("devDependencies", filePath, dep.name, dep.line ?? 1),
+      );
     }
 
     // Unlisted dependencies
     for (const dep of fileIssues.unlisted || []) {
-      findings.push(createKnipFinding('unlisted', filePath, dep.name, dep.line ?? 1));
+      findings.push(
+        createKnipFinding("unlisted", filePath, dep.name, dep.line ?? 1),
+      );
     }
 
     // Duplicates
     for (const dup of fileIssues.duplicates || []) {
-      findings.push(createKnipFinding('duplicates', filePath, dup.name, dup.line ?? 1));
+      findings.push(
+        createKnipFinding("duplicates", filePath, dup.name, dup.line ?? 1),
+      );
     }
   }
 
@@ -375,7 +392,7 @@ function createKnipFinding(
   type: string,
   filePath: string,
   symbol: string,
-  line: number
+  line: number,
 ): Finding {
   const location: Location = {
     path: filePath,
@@ -384,56 +401,56 @@ function createKnipFinding(
 
   const severity = mapKnipSeverity(type);
   const confidence = mapKnipConfidence(type);
-  const effort = estimateEffort('knip', type, 1, false);
+  const effort = estimateEffort("knip", type, 1, false);
 
   let message: string;
   let title: string;
   switch (type) {
-    case 'files':
+    case "files":
       message = `Unused file: ${filePath}`;
-      title = 'Unused File';
+      title = "Unused File";
       break;
-    case 'dependencies':
+    case "dependencies":
       message = `Unused dependency: ${symbol}`;
-      title = 'Unused Dependency';
+      title = "Unused Dependency";
       break;
-    case 'devDependencies':
+    case "devDependencies":
       message = `Unused dev dependency: ${symbol}`;
-      title = 'Unused Dev Dependency';
+      title = "Unused Dev Dependency";
       break;
-    case 'exports':
+    case "exports":
       message = `Unused export: ${symbol} in ${filePath}`;
-      title = 'Unused Export';
+      title = "Unused Export";
       break;
-    case 'types':
+    case "types":
       message = `Unused type: ${symbol} in ${filePath}`;
-      title = 'Unused Type';
+      title = "Unused Type";
       break;
-    case 'unlisted':
+    case "unlisted":
       message = `Unlisted dependency: ${symbol} used in ${filePath}`;
-      title = 'Unlisted Dependency';
+      title = "Unlisted Dependency";
       break;
-    case 'duplicates':
+    case "duplicates":
       message = `Duplicate export: ${symbol}`;
-      title = 'Duplicate Export';
+      title = "Duplicate Export";
       break;
     default:
       message = `Knip issue: ${type} - ${symbol}`;
       title = `Knip: ${type}`;
   }
 
-  const finding: Omit<Finding, 'fingerprint'> = {
-    layer: 'architecture',
-    tool: 'knip',
+  const finding: Omit<Finding, "fingerprint"> = {
+    layer: "architecture",
+    tool: "knip",
     ruleId: type,
     title,
     message,
     severity,
     confidence,
     effort,
-    autofix: 'none',
+    autofix: "none",
     locations: [location],
-    labels: ['vibeCop', 'tool:knip', `severity:${severity}`],
+    labels: ["vibeCop", "tool:knip", `severity:${severity}`],
     rawOutput: { type, filePath, symbol, line },
   };
 
@@ -484,15 +501,17 @@ export function parseSemgrepOutput(output: SemgrepOutput): Finding[] {
     };
 
     const severity = mapSemgrepSeverity(result.extra.severity);
-    const confidence = mapSemgrepConfidence(result.extra.metadata?.confidence as string | undefined);
+    const confidence = mapSemgrepConfidence(
+      result.extra.metadata?.confidence as string | undefined,
+    );
     const hasAutofix = !!result.extra.fix;
-    const autofix = hasAutofix ? 'requires_review' : 'none';
-    const effort = estimateEffort('semgrep', result.check_id, 1, hasAutofix);
-    const layer = classifyLayer('semgrep', result.check_id);
+    const autofix = hasAutofix ? "requires_review" : "none";
+    const effort = estimateEffort("semgrep", result.check_id, 1, hasAutofix);
+    const layer = classifyLayer("semgrep", result.check_id);
 
-    const finding: Omit<Finding, 'fingerprint'> = {
+    const finding: Omit<Finding, "fingerprint"> = {
       layer,
-      tool: 'semgrep',
+      tool: "semgrep",
       ruleId: result.check_id,
       title: `Semgrep: ${result.check_id}`,
       message: result.extra.message,
@@ -501,8 +520,10 @@ export function parseSemgrepOutput(output: SemgrepOutput): Finding[] {
       effort,
       autofix,
       locations: [location],
-      evidence: result.extra.lines ? { snippet: result.extra.lines } : undefined,
-      labels: ['vibeCop', 'tool:semgrep', `severity:${severity}`],
+      evidence: result.extra.lines
+        ? { snippet: result.extra.lines }
+        : undefined,
+      labels: ["vibeCop", "tool:semgrep", `severity:${severity}`],
       rawOutput: result,
     };
 
@@ -547,41 +568,49 @@ export function parseTrunkOutput(output: TrunkOutput): Finding[] {
       startColumn: issue.column,
     };
 
-    // Map Trunk level to severity
-    let severity: Finding['severity'];
-    switch (issue.level.toLowerCase()) {
-      case 'error':
-        severity = 'high';
+    // Map Trunk level to severity (handles LEVEL_HIGH, LEVEL_MEDIUM, LEVEL_LOW)
+    let severity: Finding["severity"];
+    const level = issue.level.toLowerCase().replace("level_", "");
+    switch (level) {
+      case "high":
+      case "error":
+        severity = "high";
         break;
-      case 'warning':
-        severity = 'medium';
+      case "medium":
+      case "warning":
+        severity = "medium";
         break;
       default:
-        severity = 'low';
+        severity = "low";
     }
 
     // Infer confidence based on linter
-    let confidence: Finding['confidence'] = 'medium';
-    if (['tsc', 'typescript'].includes(issue.linter.toLowerCase())) {
-      confidence = 'high';
+    let confidence: Finding["confidence"] = "medium";
+    if (["tsc", "typescript"].includes(issue.linter.toLowerCase())) {
+      confidence = "high";
     }
 
     const ruleId = issue.code || `${issue.linter}/unknown`;
-    const layer = classifyLayer('trunk', ruleId);
-    const effort = estimateEffort('trunk', ruleId, 1, false);
+    const layer = classifyLayer("trunk", ruleId);
+    const effort = estimateEffort("trunk", ruleId, 1, false);
 
-    const finding: Omit<Finding, 'fingerprint'> = {
+    const finding: Omit<Finding, "fingerprint"> = {
       layer,
-      tool: 'trunk',
+      tool: "trunk",
       ruleId,
-      title: `${issue.linter}: ${issue.code || 'issue'}`,
+      title: `${issue.linter}: ${issue.code || "issue"}`,
       message: issue.message,
       severity,
       confidence,
       effort,
-      autofix: 'none',
+      autofix: "none",
       locations: [location],
-      labels: ['vibeCop', `tool:trunk`, `linter:${issue.linter}`, `severity:${severity}`],
+      labels: [
+        "vibeCop",
+        `tool:trunk`,
+        `linter:${issue.linter}`,
+        `severity:${severity}`,
+      ],
       rawOutput: issue,
     };
 
