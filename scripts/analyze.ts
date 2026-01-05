@@ -159,7 +159,7 @@ function runTrunk(rootPath: string, args: string[] = ["check"]): Finding[] {
       }
     }
 
-    // Use pnpm exec if @trunkio/launcher is installed, otherwise global trunk
+    // Use pnpm exec trunk if available locally, otherwise global trunk
     const trunkCmd =
       versionCheck.status === 0 ? ["pnpm", "exec", "trunk"] : ["trunk"];
     const trunkArgs = [...args, "--output=json", "--no-progress"];
