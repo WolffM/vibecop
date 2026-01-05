@@ -492,7 +492,7 @@ export async function analyze(
   if (config.trunk?.enabled !== false) {
     const trunkFindings = runTrunk(
       rootPath,
-      (config.trunk?.arguments || "check").split(" "),
+      (config.trunk?.arguments || "check --all").split(" "),
     );
     allFindings.push(...trunkFindings);
     console.log(`  Trunk: ${trunkFindings.length} findings`);
