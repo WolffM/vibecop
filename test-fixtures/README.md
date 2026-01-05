@@ -28,14 +28,14 @@ These files trigger at least one issue per tool, which remain open as demo issue
 ## Running Analysis
 
 ```bash
-# Quick verbose analysis (shows all findings)
-npx tsx scripts/verbose-analyze.ts --root="."
+# Run analysis with default settings
+npx tsx scripts/run-analyze.ts --root="."
 
-# With severity filter
-npx tsx scripts/verbose-analyze.ts --severity-threshold=high
+# With specific cadence
+npx tsx scripts/run-analyze.ts --cadence=weekly
 
-# With different merge strategy
-npx tsx scripts/verbose-analyze.ts --merge-strategy=same-file
+# Skip GitHub issue creation (analysis only)
+npx tsx scripts/run-analyze.ts --skip-issues
 ```
 
 ## Demo Issues
