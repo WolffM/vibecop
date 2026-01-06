@@ -26,10 +26,189 @@ import type {
 // ============================================================================
 
 /**
+ * Extract package name from a finding message for security advisories.
+ */
+function extractPackageFromMessage(message: string): string | null {
+  // Match patterns like "'package-name' has..." or "in package-name"
+  const match = message.match(/'([^']+)'|in\s+(\S+)/);
+  return match ? match[1] || match[2] : null;
+}
+
+/**
+ * Extract version info from a finding message.
+ */
+function extractVersionFromMessage(message: string): {
+  current: string | null;
+  fixed: string | null;
+} {
+  const currentMatch = message.match(
+    /Current version[:\s]+(\S+)|version[:\s]+(\S+)/i,
+  );
+  const fixedMatch = message.match(
+    /fixed in[:\s]+(\S+)|upgrade to[:\s]+(\S+)/i,
+  );
+  return {
+    current: currentMatch ? currentMatch[1] || currentMatch[2] : null,
+    fixed: fixedMatch ? fixedMatch[1] || fixedMatch[2] : null,
+  };
+}
+
+/**
  * Template-based suggested fix generator.
  * Maps tool+ruleId patterns to fix suggestions.
  */
 const FIX_TEMPLATES: Record<string, (finding: Finding) => SuggestedFix> = {
+  // Security Advisories (GHSA)
+  "trunk/GHSA": (finding) => {
+    const pkg = extractPackageFromMessage(finding.message);
+    const version = extractVersionFromMessage(finding.message);
+    return {
+      goal: `Fix security vulnerability in ${pkg || "affected package"}`,
+      steps: [
+        `Identify the vulnerable package: ${pkg || "check the advisory"}`,
+        version.current
+          ? `Current vulnerable version: ${version.current}`
+          : "Check your lockfile for the current version",
+        `Review the security advisory: https://github.com/advisories/${finding.ruleId}`,
+        version.fixed
+          ? `Upgrade to fixed version: ${version.fixed} or later`
+          : "Upgrade to the latest patched version",
+        "Run `npm update` or `pnpm update` to update the package",
+        "Test your application to ensure the update doesn't break functionality",
+      ],
+      acceptance: [
+        "Security scanner no longer flags this vulnerability",
+        "Package version is updated in lockfile",
+        "Application tests pass",
+        "No breaking changes from the update",
+      ],
+    };
+  },
+
+  // Checkov rules for GitHub Actions
+  "trunk/CKV_GHA": (finding) => {
+    const isWorkflowDispatch = finding.ruleId === "CKV_GHA_7";
+    return {
+      goal: "Fix GitHub Actions security issue",
+      steps: isWorkflowDispatch
+        ? [
+            "This rule flags `workflow_dispatch` inputs that could affect build outputs",
+            "For trusted internal workflows, this may be a false positive",
+            "Option 1: Remove workflow_dispatch inputs if not needed",
+            "Option 2: Ensure inputs are validated before use",
+            "Option 3: Add the file to `.trunk/configs/.checkov.yaml` to ignore this rule",
+            "Review: https://www.checkov.io/5.Policy%20Index/CKV_GHA_7.html",
+          ]
+        : [
+            `Review the Checkov rule: ${finding.ruleId}`,
+            "Understand the security concern being flagged",
+            "Apply the recommended fix from the Checkov documentation",
+            "Test that the workflow still functions correctly",
+          ],
+      acceptance: [
+        "Checkov no longer flags this issue",
+        "GitHub Actions workflow runs successfully",
+        "Security posture is maintained",
+      ],
+    };
+  },
+
+  // Yamllint rules
+  "trunk/quoted-strings": () => ({
+    goal: "Fix YAML quoted string style",
+    steps: [
+      "Review the YAML files for inconsistent quoting",
+      "Remove unnecessary quotes from simple strings",
+      "Keep quotes only where needed (e.g., strings starting with special characters)",
+      "Run yamllint to verify the fix",
+    ],
+    acceptance: [
+      "Yamllint reports no quoted-strings violations",
+      "YAML files are valid and parseable",
+    ],
+  }),
+
+  // Shellcheck rules
+  "trunk/SC2181": () => ({
+    goal: "Check exit code directly instead of using $?",
+    steps: [
+      "Replace pattern: `command; if [ $? -eq 0 ]` with `if command`",
+      "For negation: `if ! command` instead of `if [ $? -ne 0 ]`",
+      "This is more readable and avoids issues with intermediate commands",
+    ],
+    acceptance: [
+      "ShellCheck no longer flags SC2181",
+      "Script behavior is unchanged",
+    ],
+  }),
+
+  "trunk/SC2086": () => ({
+    goal: "Quote variable expansions to prevent word splitting",
+    steps: [
+      'Add double quotes around variable expansions: "$variable"',
+      "This prevents issues with filenames containing spaces",
+      'Arrays should use: "${array[@]}"',
+    ],
+    acceptance: [
+      "ShellCheck no longer flags SC2086",
+      "Script handles filenames with spaces correctly",
+    ],
+  }),
+
+  "trunk/SC3043": () => ({
+    goal: "Use POSIX-compatible local variable declaration",
+    steps: [
+      "The `local` keyword is not POSIX-compliant",
+      "Option 1: Change shebang to #!/bin/bash if you need bash features",
+      "Option 2: Remove `local` and manage variable scope manually",
+      "Option 3: Use a subshell to scope variables: `(var=value; ...)`",
+    ],
+    acceptance: [
+      "ShellCheck no longer flags SC3043",
+      "Script runs correctly with the target shell",
+    ],
+  }),
+
+  // Markdownlint rules
+  "trunk/MD036": () => ({
+    goal: "Use proper headings instead of emphasis",
+    steps: [
+      "Replace **Bold Text** used as section headers with proper `## Heading` syntax",
+      "Headings provide better document structure and accessibility",
+      "Use the appropriate heading level (##, ###, etc.)",
+    ],
+    acceptance: [
+      "Markdownlint no longer flags MD036",
+      "Document structure uses proper headings",
+    ],
+  }),
+
+  "trunk/MD033": () => ({
+    goal: "Avoid raw HTML in Markdown",
+    steps: [
+      "Replace HTML tags with Markdown equivalents where possible",
+      "If HTML is necessary, consider if a different approach would work",
+      "Some HTML like <details> may be acceptable for GitHub READMEs",
+    ],
+    acceptance: [
+      "Markdownlint no longer flags MD033",
+      "Document renders correctly",
+    ],
+  }),
+
+  "trunk/MD040": () => ({
+    goal: "Add language identifier to fenced code blocks",
+    steps: [
+      "Add language after opening fence: ```javascript instead of just ```",
+      "This enables syntax highlighting",
+      "Common languages: javascript, typescript, bash, json, yaml",
+    ],
+    acceptance: [
+      "Markdownlint no longer flags MD040",
+      "Code blocks have proper syntax highlighting",
+    ],
+  }),
+
   // ESLint rules
   "eslint/no-unused-vars": () => ({
     goal: "Remove unused variable declarations",

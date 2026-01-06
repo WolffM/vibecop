@@ -83,6 +83,7 @@ function convertToExistingIssue(issue: GitHubIssueResponse): ExistingIssue {
 
 /**
  * Search for issues with specific label(s).
+ * Uses the issues.listForRepo API which is more reliable than the deprecated search API.
  */
 export async function searchIssuesByLabel(
   owner: string,
@@ -90,37 +91,8 @@ export async function searchIssuesByLabel(
   labels: string[],
   state: "open" | "closed" | "all" = "open",
 ): Promise<ExistingIssue[]> {
-  const octokit = getOctokit();
-  const issues: ExistingIssue[] = [];
-
-  // GitHub search query
-  const labelQuery = labels.map((l) => `label:"${l}"`).join(" ");
-  const q = `repo:${owner}/${repo} is:issue state:${state} ${labelQuery}`;
-
-  try {
-    // Use search API for more flexible querying
-    const iterator = octokit.paginate.iterator(
-      octokit.rest.search.issuesAndPullRequests,
-      {
-        q,
-        per_page: 100,
-      },
-    );
-
-    for await (const response of iterator) {
-      for (const issue of response.data) {
-        // Filter out pull requests (search API returns both)
-        if (issue.pull_request) continue;
-        issues.push(convertToExistingIssue(issue as GitHubIssueResponse));
-      }
-    }
-  } catch (error) {
-    // Fallback to issues list if search fails
-    console.warn("Search API failed, falling back to issues list:", error);
-    return fetchIssuesByLabel(owner, repo, labels, state);
-  }
-
-  return issues;
+  // Use the issues list API directly (more reliable, not deprecated)
+  return fetchIssuesByLabel(owner, repo, labels, state);
 }
 
 /**
@@ -265,6 +237,7 @@ export async function closeIssue(
 
 /**
  * Ensure required labels exist in the repo.
+ * Fetches existing labels first to avoid unnecessary API calls and 422 errors.
  */
 export async function ensureLabels(
   owner: string,
@@ -273,7 +246,40 @@ export async function ensureLabels(
 ): Promise<void> {
   const octokit = getOctokit();
 
-  for (const label of labels) {
+  // Fetch existing labels first to avoid 422 errors
+  const existingLabels = new Set<string>();
+  try {
+    const iterator = octokit.paginate.iterator(
+      octokit.rest.issues.listLabelsForRepo,
+      {
+        owner,
+        repo,
+        per_page: 100,
+      },
+    );
+
+    for await (const response of iterator) {
+      for (const label of response.data) {
+        existingLabels.add(label.name.toLowerCase());
+      }
+    }
+  } catch (error) {
+    console.warn(
+      "Failed to fetch existing labels, will try to create all:",
+      error,
+    );
+  }
+
+  // Only create labels that don't exist
+  const labelsToCreate = labels.filter(
+    (label) => !existingLabels.has(label.name.toLowerCase()),
+  );
+
+  if (labelsToCreate.length === 0) {
+    return; // All labels already exist
+  }
+
+  for (const label of labelsToCreate) {
     try {
       await octokit.rest.issues.createLabel({
         owner,
@@ -283,7 +289,7 @@ export async function ensureLabels(
         description: label.description,
       });
     } catch (error: unknown) {
-      // Label likely already exists (422 error)
+      // Label might have been created between our check and now (race condition)
       if ((error as { status?: number }).status !== 422) {
         console.warn(`Failed to create label "${label.name}":`, error);
       }

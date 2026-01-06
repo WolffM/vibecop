@@ -82,16 +82,34 @@ runs:
       with:
         python-version: "3.11"
 
+    - name: Detect Python files
+      id: detect-python
+      shell: bash
+      run: |
+        # Check for Python project files (more reliable than just .py files)
+        if [ -n "$(find "${{ github.workspace }}" \( -name "pyproject.toml" -o -name "setup.py" -o -name "requirements.txt" -o -name "Pipfile" \) 2>/dev/null | head -1)" ]; then
+          echo "has_python=true" >> $GITHUB_OUTPUT
+          echo "Python project files detected"
+        elif [ -n "$(find "${{ github.workspace }}" -name "*.py" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" 2>/dev/null | head -1)" ]; then
+          echo "has_python=true" >> $GITHUB_OUTPUT
+          echo "Python source files detected"
+        else
+          echo "has_python=false" >> $GITHUB_OUTPUT
+          echo "No Python files detected"
+        fi
+
     - name: Install Python Analysis Tools
       shell: bash
       run: |
-        # Always install semgrep for security scanning
+        # Always install semgrep for security scanning (works on all code, not just Python)
         pip install semgrep
 
-        # Install Python-specific tools if Python files detected
-        if find "${{ github.workspace }}" -name "*.py" -type f | head -1 | grep -q .; then
-          echo "Python files detected, installing Python analysis tools..."
+        # Install Python-specific tools only if Python files detected
+        if [ "${{ steps.detect-python.outputs.has_python }}" == "true" ]; then
+          echo "Installing Python analysis tools (ruff, mypy, bandit)..."
           pip install ruff mypy bandit
+        else
+          echo "Skipping Python-specific tools (no Python files detected)"
         fi
 
     - name: Install JS/TS Analysis Tools
