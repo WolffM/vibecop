@@ -1,0 +1,7 @@
+{
+  "name": "vibeCop",
+  "description": "Multi-language static analysis with AI-friendly GitHub issues for automated fixes",
+  "iconName": "vibecop",
+  "creator": "WolffM",
+  "categories": ["Code Scanning", "JavaScript", "TypeScript", "Python", "Java"]
+}

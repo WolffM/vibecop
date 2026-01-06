@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Shield base -->
+  <path d="M32 4L8 14v18c0 14 10 24 24 28 14-4 24-14 24-28V14L32 4z" fill="#8B5CF6"/>
+
+  <!-- Shield highlight -->
+  <path d="M32 4L8 14v18c0 14 10 24 24 28V4z" fill="#9D6FFF" opacity="0.3"/>
+
+  <!-- Robot head outline -->
+  <rect x="20" y="22" width="24" height="20" rx="4" fill="#FFFFFF"/>
+
+  <!-- Robot eyes -->
+  <circle cx="26" cy="30" r="3" fill="#8B5CF6"/>
+  <circle cx="38" cy="30" r="3" fill="#8B5CF6"/>
+
+  <!-- Robot eye glow -->
+  <circle cx="25" cy="29" r="1" fill="#FFFFFF"/>
+  <circle cx="37" cy="29" r="1" fill="#FFFFFF"/>
+
+  <!-- Robot mouth/scanner -->
+  <rect x="24" y="36" width="16" height="3" rx="1.5" fill="#8B5CF6"/>
+
+  <!-- Antenna -->
+  <line x1="32" y1="22" x2="32" y2="16" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="14" r="3" fill="#FFFFFF"/>
+
+  <!-- Circuit lines (AI element) -->
+  <path d="M14 28h4M46 28h4M14 36h4M46 36h4" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="12" cy="28" r="1.5" fill="#FFFFFF" opacity="0.7"/>
+  <circle cx="52" cy="28" r="1.5" fill="#FFFFFF" opacity="0.7"/>
+  <circle cx="12" cy="36" r="1.5" fill="#FFFFFF" opacity="0.7"/>
+  <circle cx="52" cy="36" r="1.5" fill="#FFFFFF" opacity="0.7"/>
+</svg>
