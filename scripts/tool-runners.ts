@@ -405,7 +405,15 @@ export function runSemgrep(rootPath: string, configPath?: string): Finding[] {
 
     // Use security-audit ruleset by default (works better than 'auto' on Windows)
     const config = configPath || "p/security-audit";
-    const args = ["scan", "--json", "--config", config, "."];
+    const args = [
+      "scan",
+      "--json",
+      "--config",
+      config,
+      "--exclude",
+      ".trunk,node_modules,.git",
+      ".",
+    ];
 
     const result = spawnSync("semgrep", args, {
       cwd: rootPath,
@@ -461,7 +469,13 @@ export function runRuff(rootPath: string, configPath?: string): Finding[] {
       return [];
     }
 
-    const args = ["check", "--output-format", "json"];
+    const args = [
+      "check",
+      "--output-format",
+      "json",
+      "--exclude",
+      ".trunk,node_modules,.git",
+    ];
     if (configPath) {
       args.push("--config", configPath);
     }
@@ -505,7 +519,12 @@ export function runMypy(rootPath: string, configPath?: string): Finding[] {
     }
 
     // Use --output=json for native JSON output (Python 3.10+)
-    const args = ["--output", "json"];
+    const args = [
+      "--output",
+      "json",
+      "--exclude",
+      ".trunk,node_modules,.git,venv,.venv",
+    ];
     if (configPath) {
       args.push("--config-file", configPath);
     }
@@ -564,7 +583,14 @@ export function runBandit(rootPath: string, configPath?: string): Finding[] {
       return [];
     }
 
-    const args = ["-f", "json", "-r", "."];
+    const args = [
+      "-f",
+      "json",
+      "-r",
+      ".",
+      "--exclude",
+      ".trunk,node_modules,.git,venv,.venv",
+    ];
     if (configPath) {
       args.push("-c", configPath);
     }
@@ -617,6 +643,9 @@ export function runPmd(rootPath: string, configPath?: string): Finding[] {
       "-f",
       "json",
       "--no-progress",
+      // Exclude common directories that shouldn't be analyzed
+      "--ignore-list",
+      ".trunk,node_modules,.git,build,target",
     ];
 
     const result = spawnSync("pmd", args, {
