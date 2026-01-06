@@ -44,6 +44,43 @@ function getOctokit(): Octokit {
 // Issue Search & Fetch
 // ============================================================================
 
+/** GitHub API issue shape (common fields we use) */
+interface GitHubIssueResponse {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  labels: (string | { name?: string })[];
+  pull_request?: unknown;
+}
+
+/**
+ * Convert a GitHub API issue response to our ExistingIssue type.
+ */
+function convertToExistingIssue(issue: GitHubIssueResponse): ExistingIssue {
+  const existingIssue: ExistingIssue = {
+    number: issue.number,
+    title: issue.title,
+    body: issue.body || "",
+    state: issue.state as "open" | "closed",
+    labels: issue.labels.map((l) => (typeof l === "string" ? l : l.name || "")),
+  };
+
+  // Extract metadata from body
+  const fingerprint = extractFingerprintFromBody(existingIssue.body);
+  const runMeta = extractRunMetadata(existingIssue.body);
+
+  if (fingerprint) {
+    existingIssue.metadata = {
+      fingerprint,
+      lastSeenRun: runMeta?.run || 0,
+      consecutiveMisses: 0, // Will be calculated during processing
+    };
+  }
+
+  return existingIssue;
+}
+
 /**
  * Search for issues with specific label(s).
  */
@@ -74,30 +111,7 @@ export async function searchIssuesByLabel(
       for (const issue of response.data) {
         // Filter out pull requests (search API returns both)
         if (issue.pull_request) continue;
-
-        const existingIssue: ExistingIssue = {
-          number: issue.number,
-          title: issue.title,
-          body: issue.body || "",
-          state: issue.state as "open" | "closed",
-          labels: issue.labels.map((l) =>
-            typeof l === "string" ? l : l.name || "",
-          ),
-        };
-
-        // Extract metadata from body
-        const fingerprint = extractFingerprintFromBody(existingIssue.body);
-        const runMeta = extractRunMetadata(existingIssue.body);
-
-        if (fingerprint) {
-          existingIssue.metadata = {
-            fingerprint,
-            lastSeenRun: runMeta?.run || 0,
-            consecutiveMisses: 0, // Will be calculated during processing
-          };
-        }
-
-        issues.push(existingIssue);
+        issues.push(convertToExistingIssue(issue as GitHubIssueResponse));
       }
     }
   } catch (error) {
@@ -133,30 +147,7 @@ async function fetchIssuesByLabel(
     for (const issue of response.data) {
       // Filter out pull requests
       if (issue.pull_request) continue;
-
-      const existingIssue: ExistingIssue = {
-        number: issue.number,
-        title: issue.title,
-        body: issue.body || "",
-        state: issue.state as "open" | "closed",
-        labels: issue.labels.map((l) =>
-          typeof l === "string" ? l : l.name || "",
-        ),
-      };
-
-      // Extract metadata from body
-      const fingerprint = extractFingerprintFromBody(existingIssue.body);
-      const runMeta = extractRunMetadata(existingIssue.body);
-
-      if (fingerprint) {
-        existingIssue.metadata = {
-          fingerprint,
-          lastSeenRun: runMeta?.run || 0,
-          consecutiveMisses: 0,
-        };
-      }
-
-      issues.push(existingIssue);
+      issues.push(convertToExistingIssue(issue as GitHubIssueResponse));
     }
   }
 

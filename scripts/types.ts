@@ -267,7 +267,9 @@ export interface RepoInfo {
 }
 
 export interface LlmJsonSummary {
-  totalFindings: number;
+  totalFindings: number; // Raw count before deduplication/merging
+  uniqueFindings: number; // After deduplication
+  mergedFindings: number; // After merging (used for issues)
   highConfidence: number;
   actionable: number;
   bySeverity: Record<Severity, number>;
@@ -411,27 +413,6 @@ export interface IssueUpdateParams {
 // ============================================================================
 // Tool Output Types (raw outputs from various tools)
 // ============================================================================
-
-export interface EslintMessage {
-  ruleId: string | null;
-  severity: 0 | 1 | 2;
-  message: string;
-  line: number;
-  column: number;
-  endLine?: number;
-  endColumn?: number;
-  fix?: {
-    range: [number, number];
-    text: string;
-  };
-}
-
-export interface EslintFileResult {
-  filePath: string;
-  messages: EslintMessage[];
-  errorCount: number;
-  warningCount: number;
-}
 
 export interface TscDiagnostic {
   file: string;

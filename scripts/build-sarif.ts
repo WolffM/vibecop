@@ -6,7 +6,8 @@
  * Reference: vibeCop_spec.md section 6.1
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { loadFindingsAndContext } from "./cli-utils.js";
 import type {
   Finding,
   RunContext,
@@ -231,53 +232,10 @@ async function main() {
   const outputPath = args[1] || "results.sarif";
   const contextPath = args[2] || "context.json";
 
-  // Load findings
-  if (!existsSync(findingsPath)) {
-    console.error(`Findings file not found: ${findingsPath}`);
-    process.exit(1);
-  }
-
-  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, "utf-8"));
-
-  // Load or build context
-  let context: RunContext;
-  if (existsSync(contextPath)) {
-    context = JSON.parse(readFileSync(contextPath, "utf-8"));
-  } else {
-    // Minimal context for standalone use
-    context = {
-      repo: {
-        owner: process.env.GITHUB_REPOSITORY_OWNER || "unknown",
-        name: process.env.GITHUB_REPOSITORY?.split("/")[1] || "unknown",
-        defaultBranch: "main",
-        commit: process.env.GITHUB_SHA || "unknown",
-      },
-      profile: {
-        languages: ["typescript"],
-        packageManager: "pnpm",
-        isMonorepo: false,
-        workspacePackages: [],
-        hasTypeScript: true,
-        hasEslint: false,
-        hasPrettier: false,
-        hasTrunk: false,
-        hasDependencyCruiser: false,
-        hasKnip: false,
-        rootPath: process.cwd(),
-        hasPython: false,
-        hasJava: false,
-        hasRuff: false,
-        hasMypy: false,
-        hasPmd: false,
-        hasSpotBugs: false,
-      },
-      config: { version: 1 },
-      cadence: "weekly",
-      runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10),
-      workspacePath: process.cwd(),
-      outputDir: ".",
-    };
-  }
+  const { findings, context } = loadFindingsAndContext(
+    findingsPath,
+    contextPath,
+  );
 
   // Build and write SARIF
   const sarif = buildSarifLog(findings, context);

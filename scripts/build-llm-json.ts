@@ -7,7 +7,8 @@
  * Reference: vibeCop_spec.md section 6.2
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { loadFindingsAndContext } from "./cli-utils.js";
 import { compareFindingsForSort, meetsThresholds } from "./scoring.js";
 import type {
   Confidence,
@@ -216,7 +217,7 @@ const FIX_TEMPLATES: Record<string, (finding: Finding) => SuggestedFix> = {
  * Get suggested fix for a finding.
  * Falls back to generic templates if no specific one exists.
  */
-function getSuggestedFix(finding: Finding): SuggestedFix {
+export function getSuggestedFix(finding: Finding): SuggestedFix {
   // Try exact match
   const exactKey = `${finding.tool}/${finding.ruleId}`;
   if (FIX_TEMPLATES[exactKey]) {
@@ -423,10 +424,20 @@ function getGenericFix(finding: Finding): SuggestedFix {
 // ============================================================================
 
 /**
+ * Stats passed from the analysis pipeline
+ */
+export interface FindingStats {
+  totalFindings: number; // Raw count from all tools
+  uniqueFindings: number; // After deduplication
+  mergedFindings: number; // After merging
+}
+
+/**
  * Build summary statistics for findings.
  */
 function buildSummary(
   findings: Finding[],
+  stats: FindingStats,
   severityThreshold: Severity | "info",
   confidenceThreshold: Confidence,
 ): LlmJsonSummary {
@@ -468,7 +479,9 @@ function buildSummary(
   }
 
   return {
-    totalFindings: findings.length,
+    totalFindings: stats.totalFindings,
+    uniqueFindings: stats.uniqueFindings,
+    mergedFindings: stats.mergedFindings,
     highConfidence,
     actionable,
     bySeverity,
@@ -486,6 +499,7 @@ function buildSummary(
 export function buildLlmJson(
   findings: Finding[],
   context: RunContext,
+  stats?: FindingStats,
 ): LlmJsonOutput {
   // Sort findings deterministically
   const sortedFindings = [...findings].sort(compareFindingsForSort);
@@ -506,6 +520,13 @@ export function buildLlmJson(
   const confidenceThreshold =
     context.config.issues?.confidence_threshold || "high";
 
+  // Use provided stats or default to findings length for all counts
+  const effectiveStats: FindingStats = stats || {
+    totalFindings: findings.length,
+    uniqueFindings: findings.length,
+    mergedFindings: findings.length,
+  };
+
   return {
     version: 1,
     repo: context.repo,
@@ -515,7 +536,12 @@ export function buildLlmJson(
       languages: context.profile.languages,
       packageManager: context.profile.packageManager,
     },
-    summary: buildSummary(findings, severityThreshold, confidenceThreshold),
+    summary: buildSummary(
+      findings,
+      effectiveStats,
+      severityThreshold,
+      confidenceThreshold,
+    ),
     findings: enrichedFindings,
   };
 }
@@ -536,52 +562,10 @@ async function main() {
   const outputPath = args[1] || "results.llm.json";
   const contextPath = args[2] || "context.json";
 
-  // Load findings
-  if (!existsSync(findingsPath)) {
-    console.error(`Findings file not found: ${findingsPath}`);
-    process.exit(1);
-  }
-
-  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, "utf-8"));
-
-  // Load or build context
-  let context: RunContext;
-  if (existsSync(contextPath)) {
-    context = JSON.parse(readFileSync(contextPath, "utf-8"));
-  } else {
-    context = {
-      repo: {
-        owner: process.env.GITHUB_REPOSITORY_OWNER || "unknown",
-        name: process.env.GITHUB_REPOSITORY?.split("/")[1] || "unknown",
-        defaultBranch: "main",
-        commit: process.env.GITHUB_SHA || "unknown",
-      },
-      profile: {
-        languages: ["typescript"],
-        packageManager: "pnpm",
-        isMonorepo: false,
-        workspacePackages: [],
-        hasTypeScript: true,
-        hasEslint: false,
-        hasPrettier: false,
-        hasTrunk: false,
-        hasDependencyCruiser: false,
-        hasKnip: false,
-        rootPath: process.cwd(),
-        hasPython: false,
-        hasJava: false,
-        hasRuff: false,
-        hasMypy: false,
-        hasPmd: false,
-        hasSpotBugs: false,
-      },
-      config: { version: 1 },
-      cadence: "weekly",
-      runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10),
-      workspacePath: process.cwd(),
-      outputDir: ".",
-    };
-  }
+  const { findings, context } = loadFindingsAndContext(
+    findingsPath,
+    contextPath,
+  );
 
   // Build and write LLM JSON
   const output = buildLlmJson(findings, context);

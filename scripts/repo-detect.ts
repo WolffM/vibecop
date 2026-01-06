@@ -7,10 +7,34 @@
  * Reference: vibeCop_spec.md section 5.3
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { Language, PackageManager, RepoProfile } from "./types.js";
+
+/**
+ * Check if any files with a given extension exist in common directories.
+ */
+function hasFilesWithExtension(
+  rootPath: string,
+  extension: string,
+  dirs: string[],
+): boolean {
+  for (const dir of dirs) {
+    const dirPath = join(rootPath, dir);
+    if (existsSync(dirPath)) {
+      try {
+        const files = readdirSync(dirPath);
+        if (files.some((f) => f.endsWith(extension))) {
+          return true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return false;
+}
 
 /**
  * Detect the package manager based on lockfile presence
@@ -71,23 +95,14 @@ async function detectLanguages(rootPath: string): Promise<Language[]> {
     existsSync(join(rootPath, "Pipfile"));
 
   // Also check for .py files in common directories (including test-fixtures for demo)
-  let hasPythonFiles = false;
-  const pythonDirs = ["src", "lib", "app", "scripts", "test-fixtures", "."];
-  for (const dir of pythonDirs) {
-    const dirPath = join(rootPath, dir);
-    if (existsSync(dirPath)) {
-      try {
-        const { readdirSync } = await import("node:fs");
-        const files = readdirSync(dirPath);
-        if (files.some((f) => f.endsWith(".py"))) {
-          hasPythonFiles = true;
-          break;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
+  const hasPythonFiles = hasFilesWithExtension(rootPath, ".py", [
+    "src",
+    "lib",
+    "app",
+    "scripts",
+    "test-fixtures",
+    ".",
+  ]);
 
   if (hasPythonProject || hasPythonFiles) {
     languages.push("python");
@@ -113,23 +128,13 @@ async function detectLanguages(rootPath: string): Promise<Language[]> {
     existsSync(join(rootPath, "build.gradle.kts"));
 
   // Also check for .java files in common directories (including test-fixtures for demo)
-  let hasJavaFiles = false;
-  const javaDirs = ["src", "lib", "app", "test-fixtures", "."];
-  for (const dir of javaDirs) {
-    const dirPath = join(rootPath, dir);
-    if (existsSync(dirPath)) {
-      try {
-        const { readdirSync } = await import("node:fs");
-        const files = readdirSync(dirPath);
-        if (files.some((f) => f.endsWith(".java"))) {
-          hasJavaFiles = true;
-          break;
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
+  const hasJavaFiles = hasFilesWithExtension(rootPath, ".java", [
+    "src",
+    "lib",
+    "app",
+    "test-fixtures",
+    ".",
+  ]);
 
   if (hasJavaProject || hasJavaFiles) {
     languages.push("java");
