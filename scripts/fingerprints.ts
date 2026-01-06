@@ -232,12 +232,29 @@ export type MergeStrategy =
   | "same-linter";
 
 /**
+ * Check if a finding is from the test-fixtures directory.
+ * Test-fixtures findings are kept separate (as "demo" issues) from real issues.
+ */
+export function isTestFixtureFinding(finding: Finding): boolean {
+  const file = finding.locations[0]?.path || "";
+  const normalizedFile = normalizePath(file);
+  return (
+    normalizedFile.startsWith("test-fixtures/") ||
+    normalizedFile.includes("/test-fixtures/")
+  );
+}
+
+/**
  * Build a merge key based on the strategy.
  * - 'none': Each finding is unique (fingerprint)
  * - 'same-file': Merge findings with same tool + ruleId + file
  * - 'same-rule': Merge findings with same tool + ruleId (across files)
  * - 'same-tool': Merge all findings from same tool
  * - 'same-linter': For trunk, merge by sublinter (markdownlint, yamllint, etc.)
+ *
+ * IMPORTANT: Findings from test-fixtures/ are always merged by tool to keep
+ * demo issues minimal (1-2 issues per tool). They are prefixed with "demo|"
+ * to keep them separate from real issues.
  */
 function buildMergeKey(finding: Finding, strategy: MergeStrategy): string {
   const tool = finding.tool.toLowerCase();
@@ -246,6 +263,18 @@ function buildMergeKey(finding: Finding, strategy: MergeStrategy): string {
     ? normalizePath(finding.locations[0].path)
     : "__no_file__";
 
+  // For test-fixtures, always merge by tool to minimize demo issues
+  // This creates ~1 issue per tool instead of many
+  if (isTestFixtureFinding(finding)) {
+    // For trunk, still split by sublinter (markdownlint, yamllint, etc.)
+    if (tool === "trunk") {
+      const sublinter = extractSublinter(finding);
+      return `demo|${tool}|${sublinter}`;
+    }
+    return `demo|${tool}`;
+  }
+
+  // Normal merge logic for non-demo findings
   switch (strategy) {
     case "none":
       return finding.fingerprint;
@@ -334,7 +363,7 @@ function mergeFindings(
     return a.startLine - b.startLine;
   });
 
-  // Collect all unique evidence snippets
+  // Collect all unique evidence snippets with file context
   const evidenceSnippets: string[] = [];
   const seenEvidence = new Set<string>();
 
@@ -346,15 +375,40 @@ function mergeFindings(
           : (f.evidence as { snippet?: string }).snippet;
       if (snippet && !seenEvidence.has(snippet)) {
         seenEvidence.add(snippet);
-        evidenceSnippets.push(snippet);
+        // Add file context to the snippet if we have location info
+        const loc = f.locations[0];
+        if (loc) {
+          const fileHeader = `📄 ${loc.path}:${loc.startLine}`;
+          evidenceSnippets.push(`${fileHeader}\n${snippet}`);
+        } else {
+          evidenceSnippets.push(snippet);
+        }
+      }
+    }
+  }
+
+  // Collect evidence links from all findings
+  const allLinks: string[] = [];
+  for (const f of findings) {
+    if (f.evidence?.links) {
+      for (const link of f.evidence.links) {
+        if (link && !allLinks.includes(link)) {
+          allLinks.push(link);
+        }
       }
     }
   }
 
   // Build combined evidence
   const combinedEvidence =
-    evidenceSnippets.length > 0
-      ? { snippet: evidenceSnippets.join("\n\n---\n\n") }
+    evidenceSnippets.length > 0 || allLinks.length > 0
+      ? {
+          snippet:
+            evidenceSnippets.length > 0
+              ? evidenceSnippets.join("\n\n---\n\n")
+              : undefined,
+          links: allLinks.length > 0 ? allLinks : undefined,
+        }
       : undefined;
 
   // Build summary message

@@ -9,24 +9,30 @@
 import { fingerprintFinding } from "./fingerprints.js";
 import {
   classifyLayer,
+  determineAutofixLevel,
   estimateEffort,
+  mapBanditConfidence,
+  mapBanditSeverity,
   mapDepcruiseConfidence,
   mapDepcruiseSeverity,
   mapJscpdConfidence,
   mapJscpdSeverity,
   mapKnipConfidence,
   mapKnipSeverity,
+  mapMypyConfidence,
+  mapMypySeverity,
+  mapPmdConfidence,
+  mapPmdSeverity,
+  mapRuffConfidence,
+  mapRuffSeverity,
   mapSemgrepConfidence,
   mapSemgrepSeverity,
+  mapSpotBugsConfidence,
+  mapSpotBugsSeverity,
   mapTscConfidence,
   mapTscSeverity,
 } from "./scoring.js";
-import type {
-  Finding,
-  JscpdOutput,
-  Location,
-  TscDiagnostic,
-} from "./types.js";
+import type { Finding, JscpdOutput, Location, TscDiagnostic } from "./types.js";
 
 // ============================================================================
 // TypeScript Parser
@@ -560,6 +566,443 @@ export function parseTrunkOutput(output: TrunkOutput): Finding[] {
       ...finding,
       fingerprint: fingerprintFinding(finding),
     });
+  }
+
+  return findings;
+}
+
+// ============================================================================
+// Python Tool Parsers
+// ============================================================================
+
+// Ruff JSON output types
+interface RuffResult {
+  code: string;
+  message: string;
+  filename: string;
+  location: {
+    row: number;
+    column: number;
+  };
+  end_location: {
+    row: number;
+    column: number;
+  };
+  fix?: {
+    applicability: string;
+    message: string;
+    edits: Array<{
+      content: string;
+      location: { row: number; column: number };
+      end_location: { row: number; column: number };
+    }>;
+  };
+  noqa_row?: number;
+  url?: string;
+}
+
+export interface RuffOutput {
+  results?: RuffResult[];
+  // Ruff may output array directly or wrapped
+}
+
+/**
+ * Parse Ruff JSON output into Findings.
+ * Ruff outputs JSON with --output-format json
+ */
+export function parseRuffOutput(output: RuffResult[]): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const result of output) {
+    const location: Location = {
+      path: result.filename,
+      startLine: result.location.row,
+      startColumn: result.location.column,
+      endLine: result.end_location.row,
+      endColumn: result.end_location.column,
+    };
+
+    const severity = mapRuffSeverity(result.code);
+    const confidence = mapRuffConfidence(result.code);
+    const hasAutofix = !!result.fix;
+    const autofix = determineAutofixLevel("ruff", result.code, hasAutofix);
+    const effort = estimateEffort("ruff", result.code, 1, hasAutofix);
+    const layer = classifyLayer("ruff", result.code);
+
+    const finding: Omit<Finding, "fingerprint"> = {
+      layer,
+      tool: "ruff",
+      ruleId: result.code,
+      title: `Ruff: ${result.code}`,
+      message: result.message,
+      severity,
+      confidence,
+      effort,
+      autofix,
+      locations: [location],
+      labels: ["vibeCop", "tool:ruff", `severity:${severity}`],
+      rawOutput: result,
+    };
+
+    findings.push({
+      ...finding,
+      fingerprint: fingerprintFinding(finding),
+    });
+  }
+
+  return findings;
+}
+
+// Mypy JSON output types
+interface MypyError {
+  file: string;
+  line: number;
+  column: number;
+  message: string;
+  hint: string | null;
+  code: string | null;
+  severity: string;
+}
+
+export interface MypyOutput {
+  errors?: MypyError[];
+  // Can also be array directly
+}
+
+/**
+ * Parse Mypy JSON output into Findings.
+ * Mypy outputs JSON with --output json (Python 3.10+) or via mypy-json-report plugin
+ */
+export function parseMypyOutput(errors: MypyError[]): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const error of errors) {
+    // Skip notes unless they're relevant
+    if (error.severity === "note" && !error.code) {
+      continue;
+    }
+
+    const location: Location = {
+      path: error.file,
+      startLine: error.line,
+      startColumn: error.column,
+    };
+
+    const errorCode = error.code || "unknown";
+    const severity = mapMypySeverity(errorCode);
+    const confidence = mapMypyConfidence(errorCode);
+    const effort = estimateEffort("mypy", errorCode, 1, false);
+    const layer = classifyLayer("mypy", errorCode);
+
+    const finding: Omit<Finding, "fingerprint"> = {
+      layer,
+      tool: "mypy",
+      ruleId: errorCode,
+      title: `Mypy: ${errorCode}`,
+      message: error.message + (error.hint ? `\nHint: ${error.hint}` : ""),
+      severity,
+      confidence,
+      effort,
+      autofix: "none",
+      locations: [location],
+      labels: ["vibeCop", "tool:mypy", `severity:${severity}`],
+      rawOutput: error,
+    };
+
+    findings.push({
+      ...finding,
+      fingerprint: fingerprintFinding(finding),
+    });
+  }
+
+  return findings;
+}
+
+// Bandit JSON output types
+interface BanditResult {
+  code: string;
+  col_offset: number;
+  end_col_offset: number;
+  filename: string;
+  issue_confidence: string;
+  issue_severity: string;
+  issue_cwe: { id: number; link: string };
+  issue_text: string;
+  line_number: number;
+  line_range: number[];
+  more_info: string;
+  test_id: string;
+  test_name: string;
+}
+
+export interface BanditOutput {
+  errors: unknown[];
+  generated_at: string;
+  metrics: Record<string, unknown>;
+  results: BanditResult[];
+}
+
+/**
+ * Parse Bandit JSON output into Findings.
+ * Bandit outputs JSON with -f json
+ */
+export function parseBanditOutput(output: BanditOutput): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const result of output.results) {
+    const location: Location = {
+      path: result.filename,
+      startLine: result.line_number,
+      startColumn: result.col_offset,
+      endLine:
+        result.line_range.length > 0
+          ? result.line_range[result.line_range.length - 1]
+          : result.line_number,
+      endColumn: result.end_col_offset,
+    };
+
+    const severity = mapBanditSeverity(result.issue_severity);
+    const confidence = mapBanditConfidence(result.issue_confidence);
+    const effort = estimateEffort("bandit", result.test_id, 1, false);
+
+    const finding: Omit<Finding, "fingerprint"> = {
+      layer: "security",
+      tool: "bandit",
+      ruleId: result.test_id,
+      title: `Bandit: ${result.test_name}`,
+      message: result.issue_text,
+      severity,
+      confidence,
+      effort,
+      autofix: "none",
+      locations: [location],
+      evidence: {
+        snippet: result.code,
+        links: [result.more_info, result.issue_cwe.link].filter(Boolean),
+      },
+      labels: [
+        "vibeCop",
+        "tool:bandit",
+        `severity:${severity}`,
+        `cwe:${result.issue_cwe.id}`,
+      ],
+      rawOutput: result,
+    };
+
+    findings.push({
+      ...finding,
+      fingerprint: fingerprintFinding(finding),
+    });
+  }
+
+  return findings;
+}
+
+// ============================================================================
+// Java Tool Parsers
+// ============================================================================
+
+// PMD JSON output types
+interface PmdViolation {
+  beginline: number;
+  begincolumn: number;
+  endline: number;
+  endcolumn: number;
+  description: string;
+  rule: string;
+  ruleset: string;
+  priority: number;
+  externalInfoUrl: string;
+}
+
+interface PmdFileReport {
+  filename: string;
+  violations: PmdViolation[];
+}
+
+export interface PmdOutput {
+  formatVersion: number;
+  pmdVersion: string;
+  timestamp: string;
+  files: PmdFileReport[];
+  processingErrors: unknown[];
+  configurationErrors: unknown[];
+}
+
+/**
+ * Parse PMD JSON output into Findings.
+ * PMD outputs JSON with -f json
+ */
+export function parsePmdOutput(output: PmdOutput): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const file of output.files) {
+    for (const violation of file.violations) {
+      const location: Location = {
+        path: file.filename,
+        startLine: violation.beginline,
+        startColumn: violation.begincolumn,
+        endLine: violation.endline,
+        endColumn: violation.endcolumn,
+      };
+
+      const severity = mapPmdSeverity(violation.priority);
+      const confidence = mapPmdConfidence(violation.ruleset);
+      const effort = estimateEffort("pmd", violation.rule, 1, false);
+      const layer = classifyLayer("pmd", violation.rule);
+
+      const finding: Omit<Finding, "fingerprint"> = {
+        layer,
+        tool: "pmd",
+        ruleId: violation.rule,
+        title: `PMD: ${violation.rule}`,
+        message: violation.description,
+        severity,
+        confidence,
+        effort,
+        autofix: "none",
+        locations: [location],
+        evidence: {
+          links: violation.externalInfoUrl ? [violation.externalInfoUrl] : [],
+        },
+        labels: [
+          "vibeCop",
+          "tool:pmd",
+          `severity:${severity}`,
+          `ruleset:${violation.ruleset}`,
+        ],
+        rawOutput: violation,
+      };
+
+      findings.push({
+        ...finding,
+        fingerprint: fingerprintFinding(finding),
+      });
+    }
+  }
+
+  return findings;
+}
+
+// SpotBugs SARIF output types (SpotBugs can output SARIF)
+// We'll parse SARIF format since it's more standardized
+
+interface SpotBugsSarifResult {
+  ruleId: string;
+  level: string;
+  message: { text: string };
+  locations: Array<{
+    physicalLocation: {
+      artifactLocation: { uri: string };
+      region?: {
+        startLine: number;
+        startColumn?: number;
+        endLine?: number;
+        endColumn?: number;
+      };
+    };
+  }>;
+  properties?: {
+    category?: string;
+    rank?: number;
+    confidence?: number;
+    [key: string]: unknown;
+  };
+}
+
+interface SpotBugsSarifRun {
+  tool: {
+    driver: {
+      name: string;
+      version?: string;
+      rules?: Array<{
+        id: string;
+        name?: string;
+        shortDescription?: { text: string };
+        fullDescription?: { text: string };
+        helpUri?: string;
+      }>;
+    };
+  };
+  results: SpotBugsSarifResult[];
+}
+
+export interface SpotBugsSarifOutput {
+  version: string;
+  $schema: string;
+  runs: SpotBugsSarifRun[];
+}
+
+/**
+ * Parse SpotBugs SARIF output into Findings.
+ * SpotBugs outputs SARIF with -sarif flag
+ */
+export function parseSpotBugsOutput(output: SpotBugsSarifOutput): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const run of output.runs) {
+    // Build rule lookup for descriptions
+    const ruleMap = new Map<
+      string,
+      { name?: string; description?: string; helpUri?: string }
+    >();
+    for (const rule of run.tool.driver.rules || []) {
+      ruleMap.set(rule.id, {
+        name: rule.name,
+        description: rule.shortDescription?.text || rule.fullDescription?.text,
+        helpUri: rule.helpUri,
+      });
+    }
+
+    for (const result of run.results) {
+      const loc = result.locations[0]?.physicalLocation;
+      if (!loc) continue;
+
+      const location: Location = {
+        path: loc.artifactLocation.uri.replace(/^file:\/\//, ""),
+        startLine: loc.region?.startLine ?? 1,
+        startColumn: loc.region?.startColumn,
+        endLine: loc.region?.endLine,
+        endColumn: loc.region?.endColumn,
+      };
+
+      const rank = result.properties?.rank ?? 10;
+      const category = result.properties?.category as string | undefined;
+      const confidenceNum = result.properties?.confidence ?? 2;
+
+      const severity = mapSpotBugsSeverity(rank, category);
+      const confidence = mapSpotBugsConfidence(confidenceNum);
+      const effort = estimateEffort("spotbugs", result.ruleId, 1, false);
+      const layer = classifyLayer("spotbugs", result.ruleId);
+
+      const ruleInfo = ruleMap.get(result.ruleId);
+
+      const finding: Omit<Finding, "fingerprint"> = {
+        layer,
+        tool: "spotbugs",
+        ruleId: result.ruleId,
+        title: `SpotBugs: ${ruleInfo?.name || result.ruleId}`,
+        message: result.message.text,
+        severity,
+        confidence,
+        effort,
+        autofix: "none",
+        locations: [location],
+        evidence: ruleInfo?.helpUri ? { links: [ruleInfo.helpUri] } : undefined,
+        labels: [
+          "vibeCop",
+          "tool:spotbugs",
+          `severity:${severity}`,
+          ...(category ? [`category:${category}`] : []),
+        ],
+        rawOutput: result,
+      };
+
+      findings.push({
+        ...finding,
+        fingerprint: fingerprintFinding(finding),
+      });
+    }
   }
 
   return findings;

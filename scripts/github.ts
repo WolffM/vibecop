@@ -370,6 +370,19 @@ export const DEFAULT_LABELS = [
   { name: "tool:knip", color: "fca311", description: "Found by Knip" },
   { name: "tool:semgrep", color: "14b8a6", description: "Found by Semgrep" },
   { name: "tool:trunk", color: "10b981", description: "Found by Trunk" },
+  // Python tools
+  { name: "tool:ruff", color: "d4aa00", description: "Found by Ruff" },
+  { name: "tool:mypy", color: "2a6db2", description: "Found by Mypy" },
+  { name: "tool:bandit", color: "b91c1c", description: "Found by Bandit" },
+  // Java tools
+  { name: "tool:pmd", color: "f97316", description: "Found by PMD" },
+  { name: "tool:spotbugs", color: "dc2626", description: "Found by SpotBugs" },
+  // Demo label for test-fixtures
+  {
+    name: "demo",
+    color: "6366f1",
+    description: "Demo issue from test-fixtures (intentionally dirty code)",
+  },
 ];
 
 // ============================================================================

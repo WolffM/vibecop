@@ -7,40 +7,44 @@
  * Reference: vibeCop_spec.md section 5.3
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import type { Language, PackageManager, RepoProfile } from './types.js';
+import { existsSync, readFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import type { Language, PackageManager, RepoProfile } from "./types.js";
 
 /**
  * Detect the package manager based on lockfile presence
  */
 function detectPackageManager(rootPath: string): PackageManager {
-  if (existsSync(join(rootPath, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (existsSync(join(rootPath, 'bun.lockb')) || existsSync(join(rootPath, 'bun.lock'))) return 'bun';
-  if (existsSync(join(rootPath, 'yarn.lock'))) return 'yarn';
-  if (existsSync(join(rootPath, 'package-lock.json'))) return 'npm';
-  if (existsSync(join(rootPath, 'package.json'))) return 'npm'; // default if package.json exists
-  return 'unknown';
+  if (existsSync(join(rootPath, "pnpm-lock.yaml"))) return "pnpm";
+  if (
+    existsSync(join(rootPath, "bun.lockb")) ||
+    existsSync(join(rootPath, "bun.lock"))
+  )
+    return "bun";
+  if (existsSync(join(rootPath, "yarn.lock"))) return "yarn";
+  if (existsSync(join(rootPath, "package-lock.json"))) return "npm";
+  if (existsSync(join(rootPath, "package.json"))) return "npm"; // default if package.json exists
+  return "unknown";
 }
 
 /**
  * Detect programming languages present in the repo
  */
-function detectLanguages(rootPath: string): Language[] {
+async function detectLanguages(rootPath: string): Promise<Language[]> {
   const languages: Language[] = [];
 
   // TypeScript detection
   const hasTsConfig =
-    existsSync(join(rootPath, 'tsconfig.json')) ||
-    existsSync(join(rootPath, 'tsconfig.base.json'));
+    existsSync(join(rootPath, "tsconfig.json")) ||
+    existsSync(join(rootPath, "tsconfig.base.json"));
 
   // Check package.json for typescript dependency
   let hasTypescriptDep = false;
-  const packageJsonPath = join(rootPath, 'package.json');
+  const packageJsonPath = join(rootPath, "package.json");
   if (existsSync(packageJsonPath)) {
     try {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+      const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
       hasTypescriptDep =
         pkg.devDependencies?.typescript ||
         pkg.dependencies?.typescript ||
@@ -51,44 +55,87 @@ function detectLanguages(rootPath: string): Language[] {
   }
 
   if (hasTsConfig || hasTypescriptDep) {
-    languages.push('typescript');
+    languages.push("typescript");
   }
 
   // JavaScript detection (if package.json exists but no TypeScript)
-  if (existsSync(packageJsonPath) && !languages.includes('typescript')) {
-    languages.push('javascript');
+  if (existsSync(packageJsonPath) && !languages.includes("typescript")) {
+    languages.push("javascript");
   }
 
-  // Python detection
-  if (
-    existsSync(join(rootPath, 'pyproject.toml')) ||
-    existsSync(join(rootPath, 'setup.py')) ||
-    existsSync(join(rootPath, 'requirements.txt')) ||
-    existsSync(join(rootPath, 'Pipfile'))
-  ) {
-    languages.push('python');
+  // Python detection - check for project files or .py files in key directories
+  const hasPythonProject =
+    existsSync(join(rootPath, "pyproject.toml")) ||
+    existsSync(join(rootPath, "setup.py")) ||
+    existsSync(join(rootPath, "requirements.txt")) ||
+    existsSync(join(rootPath, "Pipfile"));
+
+  // Also check for .py files in common directories (including test-fixtures for demo)
+  let hasPythonFiles = false;
+  const pythonDirs = ["src", "lib", "app", "scripts", "test-fixtures", "."];
+  for (const dir of pythonDirs) {
+    const dirPath = join(rootPath, dir);
+    if (existsSync(dirPath)) {
+      try {
+        const { readdirSync } = await import("node:fs");
+        const files = readdirSync(dirPath);
+        if (files.some((f) => f.endsWith(".py"))) {
+          hasPythonFiles = true;
+          break;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  if (hasPythonProject || hasPythonFiles) {
+    languages.push("python");
   }
 
   // Go detection
-  if (existsSync(join(rootPath, 'go.mod')) || existsSync(join(rootPath, 'go.sum'))) {
-    languages.push('go');
+  if (
+    existsSync(join(rootPath, "go.mod")) ||
+    existsSync(join(rootPath, "go.sum"))
+  ) {
+    languages.push("go");
   }
 
   // Rust detection
-  if (existsSync(join(rootPath, 'Cargo.toml'))) {
-    languages.push('rust');
+  if (existsSync(join(rootPath, "Cargo.toml"))) {
+    languages.push("rust");
   }
 
-  // Java detection
-  if (
-    existsSync(join(rootPath, 'pom.xml')) ||
-    existsSync(join(rootPath, 'build.gradle')) ||
-    existsSync(join(rootPath, 'build.gradle.kts'))
-  ) {
-    languages.push('java');
+  // Java detection - check for project files or .java files in key directories
+  const hasJavaProject =
+    existsSync(join(rootPath, "pom.xml")) ||
+    existsSync(join(rootPath, "build.gradle")) ||
+    existsSync(join(rootPath, "build.gradle.kts"));
+
+  // Also check for .java files in common directories (including test-fixtures for demo)
+  let hasJavaFiles = false;
+  const javaDirs = ["src", "lib", "app", "test-fixtures", "."];
+  for (const dir of javaDirs) {
+    const dirPath = join(rootPath, dir);
+    if (existsSync(dirPath)) {
+      try {
+        const { readdirSync } = await import("node:fs");
+        const files = readdirSync(dirPath);
+        if (files.some((f) => f.endsWith(".java"))) {
+          hasJavaFiles = true;
+          break;
+        }
+      } catch {
+        // ignore
+      }
+    }
   }
 
-  return languages.length > 0 ? languages : ['other'];
+  if (hasJavaProject || hasJavaFiles) {
+    languages.push("java");
+  }
+
+  return languages.length > 0 ? languages : ["other"];
 }
 
 /**
@@ -101,15 +148,18 @@ async function detectMonorepo(rootPath: string): Promise<{
   const workspacePackages: string[] = [];
 
   // Check for pnpm workspace
-  if (existsSync(join(rootPath, 'pnpm-workspace.yaml'))) {
+  if (existsSync(join(rootPath, "pnpm-workspace.yaml"))) {
     // Parse pnpm-workspace.yaml for package patterns
     try {
-      const content = readFileSync(join(rootPath, 'pnpm-workspace.yaml'), 'utf-8');
+      const content = readFileSync(
+        join(rootPath, "pnpm-workspace.yaml"),
+        "utf-8",
+      );
       // Simple pattern extraction (packages: - 'apps/*' - 'packages/*')
       const matches = content.match(/['"]([^'"]+)['"]/g);
       if (matches) {
         for (const match of matches) {
-          const pattern = match.replace(/['"]/g, '').replace('/*', '');
+          const pattern = match.replace(/['"]/g, "").replace("/*", "");
           const fullPath = join(rootPath, pattern);
           if (existsSync(fullPath)) {
             try {
@@ -132,17 +182,17 @@ async function detectMonorepo(rootPath: string): Promise<{
   }
 
   // Check for npm/yarn workspaces in package.json
-  const packageJsonPath = join(rootPath, 'package.json');
+  const packageJsonPath = join(rootPath, "package.json");
   if (existsSync(packageJsonPath)) {
     try {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+      const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
       if (pkg.workspaces) {
         const patterns = Array.isArray(pkg.workspaces)
           ? pkg.workspaces
           : pkg.workspaces.packages || [];
 
         for (const pattern of patterns) {
-          const basePattern = pattern.replace('/*', '').replace('/**', '');
+          const basePattern = pattern.replace("/*", "").replace("/**", "");
           const fullPath = join(rootPath, basePattern);
           if (existsSync(fullPath)) {
             try {
@@ -168,20 +218,20 @@ async function detectMonorepo(rootPath: string): Promise<{
   }
 
   // Check for Turborepo
-  if (existsSync(join(rootPath, 'turbo.json'))) {
+  if (existsSync(join(rootPath, "turbo.json"))) {
     // turbo.json usually implies monorepo
     return { isMonorepo: true, workspacePackages };
   }
 
   // Check for Lerna
-  if (existsSync(join(rootPath, 'lerna.json'))) {
+  if (existsSync(join(rootPath, "lerna.json"))) {
     return { isMonorepo: true, workspacePackages };
   }
 
   // Check for Nx
-  if (existsSync(join(rootPath, 'nx.json'))) {
+  if (existsSync(join(rootPath, "nx.json"))) {
     // Check for apps/ and libs/ directories
-    for (const dir of ['apps', 'libs', 'packages']) {
+    for (const dir of ["apps", "libs", "packages"]) {
       const fullPath = join(rootPath, dir);
       if (existsSync(fullPath)) {
         try {
@@ -211,62 +261,135 @@ function detectToolConfigs(rootPath: string): {
   hasTrunk: boolean;
   hasDependencyCruiser: boolean;
   hasKnip: boolean;
+  // Python tools
+  hasRuff: boolean;
+  hasMypy: boolean;
+  // Java tools
+  hasPmd: boolean;
+  hasSpotBugs: boolean;
 } {
   // ESLint configs (multiple possible names)
   const eslintConfigs = [
-    '.eslintrc',
-    '.eslintrc.js',
-    '.eslintrc.cjs',
-    '.eslintrc.mjs',
-    '.eslintrc.json',
-    '.eslintrc.yml',
-    '.eslintrc.yaml',
-    'eslint.config.js',
-    'eslint.config.mjs',
-    'eslint.config.cjs',
+    ".eslintrc",
+    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.mjs",
+    ".eslintrc.json",
+    ".eslintrc.yml",
+    ".eslintrc.yaml",
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.cjs",
   ];
-  const hasEslint = eslintConfigs.some((config) => existsSync(join(rootPath, config)));
+  const hasEslint = eslintConfigs.some((config) =>
+    existsSync(join(rootPath, config)),
+  );
 
   // Prettier configs
   const prettierConfigs = [
-    '.prettierrc',
-    '.prettierrc.js',
-    '.prettierrc.cjs',
-    '.prettierrc.mjs',
-    '.prettierrc.json',
-    '.prettierrc.yml',
-    '.prettierrc.yaml',
-    '.prettierrc.toml',
-    'prettier.config.js',
-    'prettier.config.mjs',
-    'prettier.config.cjs',
+    ".prettierrc",
+    ".prettierrc.js",
+    ".prettierrc.cjs",
+    ".prettierrc.mjs",
+    ".prettierrc.json",
+    ".prettierrc.yml",
+    ".prettierrc.yaml",
+    ".prettierrc.toml",
+    "prettier.config.js",
+    "prettier.config.mjs",
+    "prettier.config.cjs",
   ];
-  const hasPrettier = prettierConfigs.some((config) => existsSync(join(rootPath, config)));
+  const hasPrettier = prettierConfigs.some((config) =>
+    existsSync(join(rootPath, config)),
+  );
 
   // Trunk
-  const hasTrunk = existsSync(join(rootPath, '.trunk', 'trunk.yaml'));
+  const hasTrunk = existsSync(join(rootPath, ".trunk", "trunk.yaml"));
 
   // dependency-cruiser
   const depCruiserConfigs = [
-    '.dependency-cruiser.js',
-    '.dependency-cruiser.cjs',
-    '.dependency-cruiser.mjs',
-    '.dependency-cruiser.json',
+    ".dependency-cruiser.js",
+    ".dependency-cruiser.cjs",
+    ".dependency-cruiser.mjs",
+    ".dependency-cruiser.json",
   ];
   const hasDependencyCruiser = depCruiserConfigs.some((config) =>
-    existsSync(join(rootPath, config))
+    existsSync(join(rootPath, config)),
   );
 
   // Knip
   const knipConfigs = [
-    'knip.json',
-    'knip.jsonc',
-    '.knip.json',
-    '.knip.jsonc',
-    'knip.ts',
-    'knip.js',
+    "knip.json",
+    "knip.jsonc",
+    ".knip.json",
+    ".knip.jsonc",
+    "knip.ts",
+    "knip.js",
   ];
-  const hasKnip = knipConfigs.some((config) => existsSync(join(rootPath, config)));
+  const hasKnip = knipConfigs.some((config) =>
+    existsSync(join(rootPath, config)),
+  );
+
+  // Ruff (Python linter)
+  const ruffConfigs = ["ruff.toml", ".ruff.toml"];
+  // Also check pyproject.toml for [tool.ruff] section
+  let hasRuffInPyproject = false;
+  const pyprojectPath = join(rootPath, "pyproject.toml");
+  if (existsSync(pyprojectPath)) {
+    try {
+      const content = readFileSync(pyprojectPath, "utf-8");
+      hasRuffInPyproject = content.includes("[tool.ruff]");
+    } catch {
+      // ignore
+    }
+  }
+  const hasRuff =
+    ruffConfigs.some((config) => existsSync(join(rootPath, config))) ||
+    hasRuffInPyproject;
+
+  // Mypy (Python type checker)
+  const mypyConfigs = ["mypy.ini", ".mypy.ini"];
+  // Also check pyproject.toml for [tool.mypy] and setup.cfg for [mypy]
+  let hasMypyInPyproject = false;
+  let hasMypyInSetupCfg = false;
+  if (existsSync(pyprojectPath)) {
+    try {
+      const content = readFileSync(pyprojectPath, "utf-8");
+      hasMypyInPyproject = content.includes("[tool.mypy]");
+    } catch {
+      // ignore
+    }
+  }
+  const setupCfgPath = join(rootPath, "setup.cfg");
+  if (existsSync(setupCfgPath)) {
+    try {
+      const content = readFileSync(setupCfgPath, "utf-8");
+      hasMypyInSetupCfg = content.includes("[mypy]");
+    } catch {
+      // ignore
+    }
+  }
+  const hasMypy =
+    mypyConfigs.some((config) => existsSync(join(rootPath, config))) ||
+    hasMypyInPyproject ||
+    hasMypyInSetupCfg;
+
+  // PMD (Java static analysis)
+  const pmdConfigs = ["pmd-ruleset.xml", "ruleset.xml", "pmd.xml", ".pmd"];
+  const hasPmd = pmdConfigs.some((config) =>
+    existsSync(join(rootPath, config)),
+  );
+
+  // SpotBugs (Java bytecode analyzer)
+  const spotbugsConfigs = [
+    "spotbugs-exclude.xml",
+    "spotbugs-include.xml",
+    "spotbugs.xml",
+    "findbugs-exclude.xml", // Legacy name
+  ];
+  const hasSpotBugs = spotbugsConfigs.some((config) =>
+    existsSync(join(rootPath, config)),
+  );
 
   return {
     hasEslint,
@@ -274,16 +397,22 @@ function detectToolConfigs(rootPath: string): {
     hasTrunk,
     hasDependencyCruiser,
     hasKnip,
+    hasRuff,
+    hasMypy,
+    hasPmd,
+    hasSpotBugs,
   };
 }
 
 /**
  * Main detection function - builds complete RepoProfile
  */
-export async function detectRepo(rootPath: string = process.cwd()): Promise<RepoProfile> {
+export async function detectRepo(
+  rootPath: string = process.cwd(),
+): Promise<RepoProfile> {
   const resolvedPath = resolve(rootPath);
 
-  const languages = detectLanguages(resolvedPath);
+  const languages = await detectLanguages(resolvedPath);
   const packageManager = detectPackageManager(resolvedPath);
   const { isMonorepo, workspacePackages } = await detectMonorepo(resolvedPath);
   const toolConfigs = detectToolConfigs(resolvedPath);
@@ -293,13 +422,20 @@ export async function detectRepo(rootPath: string = process.cwd()): Promise<Repo
     packageManager,
     isMonorepo,
     workspacePackages,
-    hasTypeScript: languages.includes('typescript'),
+    hasTypeScript: languages.includes("typescript"),
     hasEslint: toolConfigs.hasEslint,
     hasPrettier: toolConfigs.hasPrettier,
     hasTrunk: toolConfigs.hasTrunk,
     hasDependencyCruiser: toolConfigs.hasDependencyCruiser,
     hasKnip: toolConfigs.hasKnip,
     rootPath: resolvedPath,
+    // Python/Java detection
+    hasPython: languages.includes("python"),
+    hasJava: languages.includes("java"),
+    hasRuff: toolConfigs.hasRuff,
+    hasMypy: toolConfigs.hasMypy,
+    hasPmd: toolConfigs.hasPmd,
+    hasSpotBugs: toolConfigs.hasSpotBugs,
   };
 }
 

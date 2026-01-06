@@ -7,8 +7,8 @@
  * Reference: vibeCop_spec.md section 6.2
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { compareFindingsForSort, meetsThresholds } from './scoring.js';
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { compareFindingsForSort, meetsThresholds } from "./scoring.js";
 import type {
   Confidence,
   Finding,
@@ -18,7 +18,7 @@ import type {
   Severity,
   SuggestedFix,
   ToolName,
-} from './types.js';
+} from "./types.js";
 
 // ============================================================================
 // Suggested Fix Templates
@@ -30,187 +30,184 @@ import type {
  */
 const FIX_TEMPLATES: Record<string, (finding: Finding) => SuggestedFix> = {
   // ESLint rules
-  'eslint/no-unused-vars': () => ({
-    goal: 'Remove unused variable declarations',
+  "eslint/no-unused-vars": () => ({
+    goal: "Remove unused variable declarations",
     steps: [
-      'Identify the unused variable from the error message',
-      'Determine if the variable should be removed or if it reveals missing functionality',
-      'If unused, remove the variable declaration',
-      'If needed elsewhere, add the appropriate usage',
+      "Identify the unused variable from the error message",
+      "Determine if the variable should be removed or if it reveals missing functionality",
+      "If unused, remove the variable declaration",
+      "If needed elsewhere, add the appropriate usage",
     ],
     acceptance: [
-      'No unused variable warnings in affected file',
-      'Tests continue to pass',
-      'No runtime errors from removed code',
+      "No unused variable warnings in affected file",
+      "Tests continue to pass",
+      "No runtime errors from removed code",
     ],
   }),
 
-  'eslint/@typescript-eslint/no-unused-vars': () => ({
-    goal: 'Remove unused variable declarations',
+  "eslint/@typescript-eslint/no-unused-vars": () => ({
+    goal: "Remove unused variable declarations",
     steps: [
-      'Identify the unused variable from the error message',
-      'Determine if the variable should be removed or if it reveals missing functionality',
-      'If unused, remove the variable declaration',
-      'If needed elsewhere, add the appropriate usage',
+      "Identify the unused variable from the error message",
+      "Determine if the variable should be removed or if it reveals missing functionality",
+      "If unused, remove the variable declaration",
+      "If needed elsewhere, add the appropriate usage",
     ],
     acceptance: [
-      'No unused variable warnings in affected file',
-      'Tests continue to pass',
-      'No runtime errors from removed code',
+      "No unused variable warnings in affected file",
+      "Tests continue to pass",
+      "No runtime errors from removed code",
     ],
   }),
 
-  'eslint/prefer-const': () => ({
-    goal: 'Use const for variables that are never reassigned',
+  "eslint/prefer-const": () => ({
+    goal: "Use const for variables that are never reassigned",
     steps: [
-      'Change `let` to `const` for the flagged variable',
-      'Verify the variable is indeed never reassigned in its scope',
+      "Change `let` to `const` for the flagged variable",
+      "Verify the variable is indeed never reassigned in its scope",
     ],
-    acceptance: [
-      'No prefer-const warnings',
-      'Code compiles without errors',
-    ],
+    acceptance: ["No prefer-const warnings", "Code compiles without errors"],
   }),
 
-  'eslint/no-var': () => ({
-    goal: 'Replace var with let or const',
+  "eslint/no-var": () => ({
+    goal: "Replace var with let or const",
     steps: [
-      'Analyze if the variable is reassigned (use let) or not (use const)',
-      'Replace var with the appropriate keyword',
-      'Check for hoisting issues that var may have masked',
+      "Analyze if the variable is reassigned (use let) or not (use const)",
+      "Replace var with the appropriate keyword",
+      "Check for hoisting issues that var may have masked",
     ],
     acceptance: [
-      'No var declarations remain',
-      'Tests pass without hoisting-related issues',
+      "No var declarations remain",
+      "Tests pass without hoisting-related issues",
     ],
   }),
 
   // TypeScript errors
-  'tsc/TS2304': (finding) => ({
+  "tsc/TS2304": (finding) => ({
     goal: 'Fix "cannot find name" TypeScript error',
     steps: [
-      `Identify what "${finding.message.match(/'([^']+)'/)?.[1] || 'the symbol'}" should refer to`,
-      'Add missing import statement if it is an external symbol',
-      'Define the type/variable if it should exist locally',
-      'Check for typos in the symbol name',
+      `Identify what "${finding.message.match(/'([^']+)'/)?.[1] || "the symbol"}" should refer to`,
+      "Add missing import statement if it is an external symbol",
+      "Define the type/variable if it should exist locally",
+      "Check for typos in the symbol name",
     ],
     acceptance: [
-      'TypeScript compilation succeeds without this error',
-      'The symbol is properly typed',
+      "TypeScript compilation succeeds without this error",
+      "The symbol is properly typed",
     ],
   }),
 
-  'tsc/TS2322': () => ({
-    goal: 'Fix type assignment error',
+  "tsc/TS2322": () => ({
+    goal: "Fix type assignment error",
     steps: [
-      'Review the expected type vs the actual type being assigned',
-      'Either update the value to match the expected type',
-      'Or update the type annotation if the value is correct',
-      'Consider if a type guard or assertion is appropriate',
+      "Review the expected type vs the actual type being assigned",
+      "Either update the value to match the expected type",
+      "Or update the type annotation if the value is correct",
+      "Consider if a type guard or assertion is appropriate",
     ],
     acceptance: [
-      'TypeScript compilation succeeds',
-      'Type safety is maintained (avoid using `any`)',
+      "TypeScript compilation succeeds",
+      "Type safety is maintained (avoid using `any`)",
     ],
   }),
 
   // jscpd
-  'jscpd/duplicate-code': (finding) => ({
-    goal: 'Eliminate code duplication',
+  "jscpd/duplicate-code": (finding) => ({
+    goal: "Eliminate code duplication",
     steps: [
-      `Review the duplicate code blocks in: ${finding.locations.map((l) => l.path).join(', ')}`,
-      'Identify the common pattern or functionality',
-      'Extract the shared logic into a reusable function/module',
-      'Replace duplicate occurrences with calls to the shared code',
-      'Ensure parameters handle any variations between the original duplicates',
+      `Review the duplicate code blocks in: ${finding.locations.map((l) => l.path).join(", ")}`,
+      "Identify the common pattern or functionality",
+      "Extract the shared logic into a reusable function/module",
+      "Replace duplicate occurrences with calls to the shared code",
+      "Ensure parameters handle any variations between the original duplicates",
     ],
     acceptance: [
-      'Duplicate code detection no longer flags these locations',
-      'All tests pass',
-      'Code behavior is unchanged',
-      'New shared function has appropriate tests',
+      "Duplicate code detection no longer flags these locations",
+      "All tests pass",
+      "Code behavior is unchanged",
+      "New shared function has appropriate tests",
     ],
   }),
 
   // dependency-cruiser
-  'dependency-cruiser/cycle': (finding) => ({
-    goal: 'Break circular dependency',
+  "dependency-cruiser/cycle": (finding) => ({
+    goal: "Break circular dependency",
     steps: [
       `Analyze the dependency cycle: ${finding.message}`,
-      'Identify the weakest or most inappropriate link in the cycle',
-      'Consider these patterns to break the cycle:',
-      '  - Extract shared types/interfaces to a separate module',
-      '  - Use dependency injection',
-      '  - Merge tightly coupled modules',
-      '  - Introduce an abstraction layer',
-      'Refactor to eliminate the circular reference',
+      "Identify the weakest or most inappropriate link in the cycle",
+      "Consider these patterns to break the cycle:",
+      "  - Extract shared types/interfaces to a separate module",
+      "  - Use dependency injection",
+      "  - Merge tightly coupled modules",
+      "  - Introduce an abstraction layer",
+      "Refactor to eliminate the circular reference",
     ],
     acceptance: [
-      'No circular dependency detected between these modules',
-      'All imports resolve correctly',
-      'Tests pass',
-      'No new cycles introduced',
+      "No circular dependency detected between these modules",
+      "All imports resolve correctly",
+      "Tests pass",
+      "No new cycles introduced",
     ],
   }),
 
-  'dependency-cruiser/not-allowed': (finding) => ({
-    goal: 'Remove forbidden dependency',
+  "dependency-cruiser/not-allowed": (finding) => ({
+    goal: "Remove forbidden dependency",
     steps: [
-      `The dependency from ${finding.locations[0]?.path || 'source'} violates architecture rules`,
-      'Review why this dependency is forbidden (check .dependency-cruiser.js)',
-      'Find an alternative approach that respects module boundaries',
-      'Consider if the rule should be updated instead (discuss with team)',
+      `The dependency from ${finding.locations[0]?.path || "source"} violates architecture rules`,
+      "Review why this dependency is forbidden (check .dependency-cruiser.js)",
+      "Find an alternative approach that respects module boundaries",
+      "Consider if the rule should be updated instead (discuss with team)",
     ],
     acceptance: [
-      'No forbidden dependency violations',
-      'Architecture boundaries are respected',
-      'Functionality is preserved',
+      "No forbidden dependency violations",
+      "Architecture boundaries are respected",
+      "Functionality is preserved",
     ],
   }),
 
   // knip
-  'knip/files': (finding) => ({
-    goal: 'Remove or utilize unused file',
+  "knip/files": (finding) => ({
+    goal: "Remove or utilize unused file",
     steps: [
-      `Review ${finding.locations[0]?.path || 'the file'} to confirm it is truly unused`,
-      'Check if it should be imported somewhere but is not',
-      'If genuinely unused, delete the file',
-      'Update any documentation references',
+      `Review ${finding.locations[0]?.path || "the file"} to confirm it is truly unused`,
+      "Check if it should be imported somewhere but is not",
+      "If genuinely unused, delete the file",
+      "Update any documentation references",
     ],
     acceptance: [
-      'File is either removed or properly imported',
-      'No broken imports',
-      'Tests pass',
+      "File is either removed or properly imported",
+      "No broken imports",
+      "Tests pass",
     ],
   }),
 
-  'knip/dependencies': (finding) => ({
-    goal: 'Remove unused npm dependency',
+  "knip/dependencies": (finding) => ({
+    goal: "Remove unused npm dependency",
     steps: [
-      `Verify that ${finding.message.match(/Unused dependency: (.+)/)?.[1] || 'the package'} is not used`,
-      'Search codebase for any dynamic imports or require calls',
-      'Check if it is a peer dependency needed by another package',
-      'If truly unused, remove from package.json',
-      'Run install to update lockfile',
+      `Verify that ${finding.message.match(/Unused dependency: (.+)/)?.[1] || "the package"} is not used`,
+      "Search codebase for any dynamic imports or require calls",
+      "Check if it is a peer dependency needed by another package",
+      "If truly unused, remove from package.json",
+      "Run install to update lockfile",
     ],
     acceptance: [
-      'Package is removed from dependencies',
-      'Application builds successfully',
-      'All features work correctly',
+      "Package is removed from dependencies",
+      "Application builds successfully",
+      "All features work correctly",
     ],
   }),
 
-  'knip/exports': (finding) => ({
-    goal: 'Remove or utilize unused export',
+  "knip/exports": (finding) => ({
+    goal: "Remove or utilize unused export",
     steps: [
-      `Check if ${finding.message.match(/Unused export: (.+)/)?.[1] || 'the export'} should be used somewhere`,
-      'If part of public API, document why it should remain',
-      'If truly unused, remove the export keyword or delete the code',
-      'Consider if this reveals dead code paths',
+      `Check if ${finding.message.match(/Unused export: (.+)/)?.[1] || "the export"} should be used somewhere`,
+      "If part of public API, document why it should remain",
+      "If truly unused, remove the export keyword or delete the code",
+      "Consider if this reveals dead code paths",
     ],
     acceptance: [
-      'Export is either removed or documented as intentional API',
-      'No broken imports in consuming code',
+      "Export is either removed or documented as intentional API",
+      "No broken imports in consuming code",
     ],
   }),
 };
@@ -228,8 +225,11 @@ function getSuggestedFix(finding: Finding): SuggestedFix {
 
   // Try tool-level patterns
   for (const [pattern, generator] of Object.entries(FIX_TEMPLATES)) {
-    const [tool, rulePattern] = pattern.split('/');
-    if (finding.tool === tool && finding.ruleId.toLowerCase().includes(rulePattern.toLowerCase())) {
+    const [tool, rulePattern] = pattern.split("/");
+    if (
+      finding.tool === tool &&
+      finding.ruleId.toLowerCase().includes(rulePattern.toLowerCase())
+    ) {
       return generator(finding);
     }
   }
@@ -247,113 +247,171 @@ function getGenericFix(finding: Finding): SuggestedFix {
       goal: `Fix ESLint rule: ${finding.ruleId}`,
       steps: [
         `Review the ESLint documentation for rule "${finding.ruleId}"`,
-        'Understand why this rule exists and what it prevents',
-        'Apply the suggested fix or refactor code to comply',
-        'If rule is inappropriate, consider configuring an exception',
+        "Understand why this rule exists and what it prevents",
+        "Apply the suggested fix or refactor code to comply",
+        "If rule is inappropriate, consider configuring an exception",
       ],
       acceptance: [
         `No ${finding.ruleId} violations in affected files`,
-        'Tests pass',
+        "Tests pass",
       ],
     },
     tsc: {
       goal: `Fix TypeScript error: ${finding.ruleId}`,
       steps: [
-        'Read the error message carefully',
-        'Check types of all involved expressions',
-        'Fix type mismatches or add appropriate type annotations',
-        'Avoid using `any` unless absolutely necessary',
+        "Read the error message carefully",
+        "Check types of all involved expressions",
+        "Fix type mismatches or add appropriate type annotations",
+        "Avoid using `any` unless absolutely necessary",
       ],
       acceptance: [
-        'TypeScript compilation succeeds',
-        'Type safety is maintained',
+        "TypeScript compilation succeeds",
+        "Type safety is maintained",
       ],
     },
     prettier: {
-      goal: 'Fix formatting issue',
+      goal: "Fix formatting issue",
       steps: [
-        'Run prettier with --write flag to auto-fix',
-        'Or manually adjust formatting to match project style',
+        "Run prettier with --write flag to auto-fix",
+        "Or manually adjust formatting to match project style",
       ],
-      acceptance: [
-        'Prettier reports no issues',
-        'Code style is consistent',
-      ],
+      acceptance: ["Prettier reports no issues", "Code style is consistent"],
     },
     jscpd: {
-      goal: 'Reduce code duplication',
+      goal: "Reduce code duplication",
       steps: [
-        'Identify the duplicated logic',
-        'Extract to a shared function or module',
-        'Replace duplicates with calls to shared code',
+        "Identify the duplicated logic",
+        "Extract to a shared function or module",
+        "Replace duplicates with calls to shared code",
       ],
       acceptance: [
-        'Duplication percentage reduced',
-        'Tests pass',
-        'Behavior unchanged',
+        "Duplication percentage reduced",
+        "Tests pass",
+        "Behavior unchanged",
       ],
     },
-    'dependency-cruiser': {
-      goal: 'Fix dependency architecture violation',
+    "dependency-cruiser": {
+      goal: "Fix dependency architecture violation",
       steps: [
-        'Review the dependency rule being violated',
-        'Understand the architectural intent',
-        'Refactor to respect module boundaries',
+        "Review the dependency rule being violated",
+        "Understand the architectural intent",
+        "Refactor to respect module boundaries",
       ],
       acceptance: [
-        'No dependency violations',
-        'Architecture constraints respected',
+        "No dependency violations",
+        "Architecture constraints respected",
       ],
     },
     knip: {
-      goal: 'Clean up unused code',
+      goal: "Clean up unused code",
       steps: [
-        'Verify the code/export/dependency is truly unused',
-        'Remove if unused, or add proper usage',
-        'Update related tests and documentation',
+        "Verify the code/export/dependency is truly unused",
+        "Remove if unused, or add proper usage",
+        "Update related tests and documentation",
       ],
-      acceptance: [
-        'No unused code warnings',
-        'Codebase is cleaner',
-      ],
+      acceptance: ["No unused code warnings", "Codebase is cleaner"],
     },
     semgrep: {
       goal: `Address security/quality issue: ${finding.ruleId}`,
       steps: [
-        'Review the semgrep rule documentation',
-        'Understand the security or quality concern',
-        'Apply the recommended fix pattern',
-        'Add tests to prevent regression',
+        "Review the semgrep rule documentation",
+        "Understand the security or quality concern",
+        "Apply the recommended fix pattern",
+        "Add tests to prevent regression",
       ],
       acceptance: [
-        'Semgrep finding is resolved',
-        'Security concern is addressed',
-        'Tests verify the fix',
+        "Semgrep finding is resolved",
+        "Security concern is addressed",
+        "Tests verify the fix",
       ],
     },
     trunk: {
       goal: `Fix linter issue: ${finding.ruleId}`,
       steps: [
-        'Review the specific linter rule',
-        'Apply appropriate fix',
-        'Verify fix does not introduce new issues',
+        "Review the specific linter rule",
+        "Apply appropriate fix",
+        "Verify fix does not introduce new issues",
+      ],
+      acceptance: ["Trunk check passes", "No regressions"],
+    },
+    ruff: {
+      goal: `Fix Python linting issue: ${finding.ruleId}`,
+      steps: [
+        `Review the Ruff documentation for rule "${finding.ruleId}"`,
+        "Run `ruff check --fix` to auto-fix if available",
+        "Manually fix if auto-fix is not available or insufficient",
+        "Ensure code follows PEP 8 and project style",
       ],
       acceptance: [
-        'Trunk check passes',
-        'No regressions',
+        `No ${finding.ruleId} violations`,
+        "Python tests pass",
+        "Code style is consistent",
+      ],
+    },
+    mypy: {
+      goal: `Fix Python type error: ${finding.ruleId}`,
+      steps: [
+        "Read the type error message carefully",
+        "Check types of all involved variables and functions",
+        "Add type annotations where missing",
+        "Fix type mismatches or use appropriate type narrowing",
+      ],
+      acceptance: [
+        "Mypy reports no errors",
+        "Type safety is maintained",
+        "Tests pass",
+      ],
+    },
+    bandit: {
+      goal: `Address Python security issue: ${finding.ruleId}`,
+      steps: [
+        `Review the Bandit documentation for "${finding.ruleId}"`,
+        "Understand the security vulnerability",
+        "Apply secure coding practices to fix the issue",
+        "Add tests to verify the security fix",
+      ],
+      acceptance: [
+        "Bandit finding is resolved",
+        "Security vulnerability is mitigated",
+        "No secrets or credentials exposed",
+      ],
+    },
+    pmd: {
+      goal: `Fix Java code quality issue: ${finding.ruleId}`,
+      steps: [
+        `Review the PMD documentation for rule "${finding.ruleId}"`,
+        "Understand the code quality concern",
+        "Refactor code to comply with best practices",
+        "Run tests to verify behavior is unchanged",
+      ],
+      acceptance: [
+        `No ${finding.ruleId} violations`,
+        "Java tests pass",
+        "Code quality improved",
+      ],
+    },
+    spotbugs: {
+      goal: `Fix Java bug pattern: ${finding.ruleId}`,
+      steps: [
+        `Review the SpotBugs documentation for "${finding.ruleId}"`,
+        "Understand the potential bug or vulnerability",
+        "Fix the code to eliminate the bug pattern",
+        "Add tests to prevent regression",
+      ],
+      acceptance: [
+        "SpotBugs finding is resolved",
+        "Potential bug is eliminated",
+        "Tests verify correct behavior",
       ],
     },
     custom: {
-      goal: 'Address code issue',
+      goal: "Address code issue",
       steps: [
-        'Review the finding details',
-        'Apply appropriate fix',
-        'Test the changes',
+        "Review the finding details",
+        "Apply appropriate fix",
+        "Test the changes",
       ],
-      acceptance: [
-        'Issue is resolved',
-        'Tests pass',
-      ],
+      acceptance: ["Issue is resolved", "Tests pass"],
     },
   };
 
@@ -370,7 +428,7 @@ function getGenericFix(finding: Finding): SuggestedFix {
 function buildSummary(
   findings: Finding[],
   severityThreshold: Severity | "info",
-  confidenceThreshold: Confidence
+  confidenceThreshold: Confidence,
 ): LlmJsonSummary {
   const bySeverity: Record<Severity, number> = {
     low: 0,
@@ -392,12 +450,19 @@ function buildSummary(
     byTool[finding.tool] = (byTool[finding.tool] || 0) + 1;
 
     // Count high confidence
-    if (finding.confidence === 'high') {
+    if (finding.confidence === "high") {
       highConfidence++;
     }
 
     // Count actionable (meets thresholds)
-    if (meetsThresholds(finding.severity, finding.confidence, severityThreshold, confidenceThreshold)) {
+    if (
+      meetsThresholds(
+        finding.severity,
+        finding.confidence,
+        severityThreshold,
+        confidenceThreshold,
+      )
+    ) {
       actionable++;
     }
   }
@@ -418,7 +483,10 @@ function buildSummary(
 /**
  * Build LLM JSON output from findings.
  */
-export function buildLlmJson(findings: Finding[], context: RunContext): LlmJsonOutput {
+export function buildLlmJson(
+  findings: Finding[],
+  context: RunContext,
+): LlmJsonOutput {
   // Sort findings deterministically
   const sortedFindings = [...findings].sort(compareFindingsForSort);
 
@@ -433,8 +501,10 @@ export function buildLlmJson(findings: Finding[], context: RunContext): LlmJsonO
     };
   });
 
-  const severityThreshold = context.config.issues?.severity_threshold || 'medium';
-  const confidenceThreshold = context.config.issues?.confidence_threshold || 'high';
+  const severityThreshold =
+    context.config.issues?.severity_threshold || "medium";
+  const confidenceThreshold =
+    context.config.issues?.confidence_threshold || "high";
 
   return {
     version: 1,
@@ -454,7 +524,7 @@ export function buildLlmJson(findings: Finding[], context: RunContext): LlmJsonO
  * Write LLM JSON to file.
  */
 export function writeLlmJsonFile(output: LlmJsonOutput, path: string): void {
-  writeFileSync(path, JSON.stringify(output, null, 2), 'utf-8');
+  writeFileSync(path, JSON.stringify(output, null, 2), "utf-8");
 }
 
 /**
@@ -462,9 +532,9 @@ export function writeLlmJsonFile(output: LlmJsonOutput, path: string): void {
  */
 async function main() {
   const args = process.argv.slice(2);
-  const findingsPath = args[0] || 'findings.json';
-  const outputPath = args[1] || 'results.llm.json';
-  const contextPath = args[2] || 'context.json';
+  const findingsPath = args[0] || "findings.json";
+  const outputPath = args[1] || "results.llm.json";
+  const contextPath = args[2] || "context.json";
 
   // Load findings
   if (!existsSync(findingsPath)) {
@@ -472,23 +542,23 @@ async function main() {
     process.exit(1);
   }
 
-  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, 'utf-8'));
+  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, "utf-8"));
 
   // Load or build context
   let context: RunContext;
   if (existsSync(contextPath)) {
-    context = JSON.parse(readFileSync(contextPath, 'utf-8'));
+    context = JSON.parse(readFileSync(contextPath, "utf-8"));
   } else {
     context = {
       repo: {
-        owner: process.env.GITHUB_REPOSITORY_OWNER || 'unknown',
-        name: process.env.GITHUB_REPOSITORY?.split('/')[1] || 'unknown',
-        defaultBranch: 'main',
-        commit: process.env.GITHUB_SHA || 'unknown',
+        owner: process.env.GITHUB_REPOSITORY_OWNER || "unknown",
+        name: process.env.GITHUB_REPOSITORY?.split("/")[1] || "unknown",
+        defaultBranch: "main",
+        commit: process.env.GITHUB_SHA || "unknown",
       },
       profile: {
-        languages: ['typescript'],
-        packageManager: 'pnpm',
+        languages: ["typescript"],
+        packageManager: "pnpm",
         isMonorepo: false,
         workspacePackages: [],
         hasTypeScript: true,
@@ -498,12 +568,18 @@ async function main() {
         hasDependencyCruiser: false,
         hasKnip: false,
         rootPath: process.cwd(),
+        hasPython: false,
+        hasJava: false,
+        hasRuff: false,
+        hasMypy: false,
+        hasPmd: false,
+        hasSpotBugs: false,
       },
       config: { version: 1 },
-      cadence: 'weekly',
-      runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || '1', 10),
+      cadence: "weekly",
+      runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10),
       workspacePath: process.cwd(),
-      outputDir: '.',
+      outputDir: ".",
     };
   }
 

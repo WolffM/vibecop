@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(gh run view:*)",
+      "Bash(cat:*)",
+      "Bash(gh issue list:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

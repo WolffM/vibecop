@@ -14,17 +14,27 @@ These files trigger at least one issue per tool, which remain open as demo issue
 | `circular-dep-a.ts` + `circular-dep-b.ts`     | **dependency-cruiser** | Circular import dependency                            |
 | `unused-exports.ts`                           | **knip**               | Exported but never imported functions, classes, types |
 | `security-issues.ts`                          | **Semgrep**            | `eval()`, command injection patterns                  |
+| `ruff-issues.py`                              | **Ruff**               | Style violations, unused imports, bad naming          |
+| `mypy-issues.py`                              | **Mypy**               | Type mismatches, missing returns, protocol violations |
+| `bandit-issues.py`                            | **Bandit**             | SQL injection, hardcoded secrets, insecure functions  |
+| `PmdIssues.java`                              | **PMD**                | Empty catch blocks, unused vars, complexity issues    |
+| `SpotBugsIssues.java`                         | **SpotBugs**           | Null deref, resource leaks, thread safety bugs        |
 
 ## Tool Coverage Summary
 
-| Tool                   | Findings    | Description                         |
-| ---------------------- | ----------- | ----------------------------------- |
-| **Trunk**              | ✅ Multiple | markdownlint, yamllint, osv-scanner |
-| **tsc**                | ✅ Multiple | TypeScript compiler errors          |
-| **jscpd**              | ✅ 1+       | Duplicate code blocks               |
-| **dependency-cruiser** | ✅ 1        | Circular dependency                 |
-| **knip**               | ✅ Multiple | Unused exports and dependencies     |
-| **Semgrep**            | ✅ 1+       | Security vulnerabilities            |
+| Tool                   | Findings    | Cadence | Description                           |
+| ---------------------- | ----------- | ------- | ------------------------------------- |
+| **Trunk**              | ✅ Multiple | daily   | markdownlint, yamllint, osv-scanner   |
+| **tsc**                | ✅ Multiple | daily   | TypeScript compiler errors            |
+| **jscpd**              | ✅ 1+       | daily   | Duplicate code blocks                 |
+| **dependency-cruiser** | ✅ 1        | daily   | Circular dependency                   |
+| **knip**               | ✅ Multiple | daily   | Unused exports and dependencies       |
+| **Semgrep**            | ✅ 1+       | weekly  | Security vulnerabilities              |
+| **Ruff**               | ✅ Multiple | daily   | Python linting (fast)                 |
+| **Mypy**               | ✅ Multiple | daily   | Python type checking                  |
+| **Bandit**             | ✅ Multiple | weekly  | Python security scanning              |
+| **PMD**                | ✅ Multiple | weekly  | Java code analysis                    |
+| **SpotBugs**           | ✅ Multiple | monthly | Java bytecode analysis (needs .class) |
 
 ## Running Analysis
 
