@@ -9,7 +9,7 @@
   "files": [
     "bin/",
     "scripts/",
-    "templates/",
+    "action.yml",
     "README.md",
     "LICENSE"
   ],
