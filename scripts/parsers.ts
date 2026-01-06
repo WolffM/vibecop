@@ -601,11 +601,6 @@ interface RuffResult {
   url?: string;
 }
 
-export interface RuffOutput {
-  results?: RuffResult[];
-  // Ruff may output array directly or wrapped
-}
-
 /**
  * Parse Ruff JSON output into Findings.
  * Ruff outputs JSON with --output-format json
@@ -662,11 +657,6 @@ interface MypyError {
   hint: string | null;
   code: string | null;
   severity: string;
-}
-
-export interface MypyOutput {
-  errors?: MypyError[];
-  // Can also be array directly
 }
 
 /**
