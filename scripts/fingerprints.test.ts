@@ -2,7 +2,7 @@
  * Fingerprints Module Tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 import {
   bucketLine,
   normalizePath,
@@ -20,10 +20,31 @@ import {
   groupByFingerprint,
   deduplicateFindings,
   LINE_BUCKET_SIZE,
-} from './fingerprints.js';
+} from "./fingerprints.js";
+import type { Finding } from "./types.js";
 
-describe('bucketLine', () => {
-  it('should bucket lines to nearest 20', () => {
+/** Create a test finding with optional overrides */
+function createTestFinding(
+  overrides: Partial<Omit<Finding, "fingerprint">> = {},
+): Omit<Finding, "fingerprint"> {
+  return {
+    layer: "code",
+    tool: "eslint",
+    ruleId: "no-unused-vars",
+    title: "Unused variable",
+    message: "Variable x is declared but never used",
+    severity: "medium",
+    confidence: "high",
+    effort: "S",
+    autofix: "safe",
+    locations: [{ path: "src/file.ts", startLine: 10 }],
+    labels: ["vibeCop"],
+    ...overrides,
+  };
+}
+
+describe("bucketLine", () => {
+  it("should bucket lines to nearest 20", () => {
     expect(bucketLine(0)).toBe(0);
     expect(bucketLine(1)).toBe(0);
     expect(bucketLine(19)).toBe(0);
@@ -35,228 +56,203 @@ describe('bucketLine', () => {
     expect(bucketLine(105)).toBe(100);
   });
 
-  it('should use configured bucket size', () => {
+  it("should use configured bucket size", () => {
     expect(LINE_BUCKET_SIZE).toBe(20);
   });
 });
 
-describe('normalizePath', () => {
-  it('should convert backslashes to forward slashes', () => {
-    expect(normalizePath('src\\utils\\helper.ts')).toBe('src/utils/helper.ts');
+describe("normalizePath", () => {
+  it("should convert backslashes to forward slashes", () => {
+    expect(normalizePath("src\\utils\\helper.ts")).toBe("src/utils/helper.ts");
   });
 
-  it('should remove leading ./', () => {
-    expect(normalizePath('./src/file.ts')).toBe('src/file.ts');
+  it("should remove leading ./", () => {
+    expect(normalizePath("./src/file.ts")).toBe("src/file.ts");
   });
 
-  it('should lowercase paths', () => {
-    expect(normalizePath('Src/Utils/Helper.ts')).toBe('src/utils/helper.ts');
+  it("should lowercase paths", () => {
+    expect(normalizePath("Src/Utils/Helper.ts")).toBe("src/utils/helper.ts");
   });
 
-  it('should handle combined transformations', () => {
-    expect(normalizePath('.\\Src\\Utils\\Helper.ts')).toBe('src/utils/helper.ts');
-  });
-});
-
-describe('normalizeMessage', () => {
-  it('should collapse whitespace', () => {
-    expect(normalizeMessage('multiple   spaces   here')).toBe('multiple spaces here');
-  });
-
-  it('should replace numbers with #', () => {
-    expect(normalizeMessage('Error on line 42')).toBe('error on line #');
-    expect(normalizeMessage('Found 123 issues in 456 files')).toBe('found # issues in # files');
-  });
-
-  it('should trim and lowercase', () => {
-    expect(normalizeMessage('  Error Message  ')).toBe('error message');
+  it("should handle combined transformations", () => {
+    expect(normalizePath(".\\Src\\Utils\\Helper.ts")).toBe(
+      "src/utils/helper.ts",
+    );
   });
 });
 
-describe('normalizeRuleId', () => {
-  it('should trim and lowercase', () => {
-    expect(normalizeRuleId('  No-Unused-Vars  ')).toBe('no-unused-vars');
+describe("normalizeMessage", () => {
+  it("should collapse whitespace", () => {
+    expect(normalizeMessage("multiple   spaces   here")).toBe(
+      "multiple spaces here",
+    );
+  });
+
+  it("should replace numbers with #", () => {
+    expect(normalizeMessage("Error on line 42")).toBe("error on line #");
+    expect(normalizeMessage("Found 123 issues in 456 files")).toBe(
+      "found # issues in # files",
+    );
+  });
+
+  it("should trim and lowercase", () => {
+    expect(normalizeMessage("  Error Message  ")).toBe("error message");
   });
 });
 
-describe('buildFingerprintKey', () => {
-  it('should build consistent keys', () => {
+describe("normalizeRuleId", () => {
+  it("should trim and lowercase", () => {
+    expect(normalizeRuleId("  No-Unused-Vars  ")).toBe("no-unused-vars");
+  });
+});
+
+describe("buildFingerprintKey", () => {
+  it("should build consistent keys", () => {
     const key = buildFingerprintKey(
-      'eslint',
-      'no-unused-vars',
-      'src/file.ts',
+      "eslint",
+      "no-unused-vars",
+      "src/file.ts",
       25,
-      'Variable x is not used'
+      "Variable x is not used",
     );
 
-    expect(key).toBe('eslint|no-unused-vars|src/file.ts|20|variable x is not used');
+    expect(key).toBe(
+      "eslint|no-unused-vars|src/file.ts|20|variable x is not used",
+    );
   });
 
-  it('should normalize all components', () => {
+  it("should normalize all components", () => {
     const key = buildFingerprintKey(
-      'ESLint',
-      'No-Unused-Vars',
-      '.\\Src\\File.ts',
+      "ESLint",
+      "No-Unused-Vars",
+      ".\\Src\\File.ts",
       25,
-      '  Variable 123 is not used  '
+      "  Variable 123 is not used  ",
     );
 
-    expect(key).toBe('eslint|no-unused-vars|src/file.ts|20|variable # is not used');
+    expect(key).toBe(
+      "eslint|no-unused-vars|src/file.ts|20|variable # is not used",
+    );
   });
 });
 
-describe('computeFingerprint', () => {
-  it('should return sha256 prefixed hash', () => {
-    const fingerprint = computeFingerprint('test-key');
+describe("computeFingerprint", () => {
+  it("should return sha256 prefixed hash", () => {
+    const fingerprint = computeFingerprint("test-key");
     expect(fingerprint).toMatch(/^sha256:[a-f0-9]{64}$/);
   });
 
-  it('should be deterministic', () => {
-    const fp1 = computeFingerprint('same-key');
-    const fp2 = computeFingerprint('same-key');
+  it("should be deterministic", () => {
+    const fp1 = computeFingerprint("same-key");
+    const fp2 = computeFingerprint("same-key");
     expect(fp1).toBe(fp2);
   });
 
-  it('should differ for different inputs', () => {
-    const fp1 = computeFingerprint('key-1');
-    const fp2 = computeFingerprint('key-2');
+  it("should differ for different inputs", () => {
+    const fp1 = computeFingerprint("key-1");
+    const fp2 = computeFingerprint("key-2");
     expect(fp1).not.toBe(fp2);
   });
 });
 
-describe('fingerprintFinding', () => {
-  it('should generate fingerprint for finding with location', () => {
-    const finding = {
-      layer: 'code' as const,
-      tool: 'eslint' as const,
-      ruleId: 'no-unused-vars',
-      title: 'Unused variable',
-      message: 'Variable x is declared but never used',
-      severity: 'medium' as const,
-      confidence: 'high' as const,
-      effort: 'S' as const,
-      autofix: 'safe' as const,
-      locations: [{ path: 'src/file.ts', startLine: 10 }],
-      labels: ['vibeCop'],
-    };
-
+describe("fingerprintFinding", () => {
+  it("should generate fingerprint for finding with location", () => {
+    const finding = createTestFinding();
     const fp = fingerprintFinding(finding);
     expect(fp).toMatch(/^sha256:[a-f0-9]{64}$/);
   });
 
-  it('should generate fingerprint for finding without location', () => {
-    const finding = {
-      layer: 'code' as const,
-      tool: 'eslint' as const,
-      ruleId: 'no-unused-vars',
-      title: 'Unused variable',
-      message: 'Variable x is declared but never used',
-      severity: 'medium' as const,
-      confidence: 'high' as const,
-      effort: 'S' as const,
-      autofix: 'safe' as const,
-      locations: [],
-      labels: ['vibeCop'],
-    };
-
+  it("should generate fingerprint for finding without location", () => {
+    const finding = createTestFinding({ locations: [] });
     const fp = fingerprintFinding(finding);
     expect(fp).toMatch(/^sha256:[a-f0-9]{64}$/);
   });
 
-  it('should produce same fingerprint for similar findings', () => {
-    const finding1 = {
-      layer: 'code' as const,
-      tool: 'eslint' as const,
-      ruleId: 'no-unused-vars',
-      title: 'Unused variable',
-      message: 'Variable x is declared but never used',
-      severity: 'medium' as const,
-      confidence: 'high' as const,
-      effort: 'S' as const,
-      autofix: 'safe' as const,
-      locations: [{ path: 'src/file.ts', startLine: 10 }],
-      labels: ['vibeCop'],
-    };
-
-    const finding2 = {
-      ...finding1,
-      // Different line but same bucket
-      locations: [{ path: 'src/file.ts', startLine: 15 }],
-    };
+  it("should produce same fingerprint for similar findings", () => {
+    const finding1 = createTestFinding();
+    // Different line but same bucket (10 and 15 both bucket to 0)
+    const finding2 = createTestFinding({
+      locations: [{ path: "src/file.ts", startLine: 15 }],
+    });
 
     expect(fingerprintFinding(finding1)).toBe(fingerprintFinding(finding2));
   });
 });
 
-describe('shortFingerprint', () => {
-  it('should return first 12 chars of hash', () => {
-    const fp = 'sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
-    expect(shortFingerprint(fp)).toBe('abcdef123456');
+describe("shortFingerprint", () => {
+  it("should return first 12 chars of hash", () => {
+    const fp =
+      "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+    expect(shortFingerprint(fp)).toBe("abcdef123456");
   });
 });
 
-describe('fingerprint markers', () => {
-  it('should generate and extract fingerprint marker', () => {
-    const fp = 'sha256:abc123def456';
+describe("fingerprint markers", () => {
+  it("should generate and extract fingerprint marker", () => {
+    const fp = "sha256:abc123def456";
     const marker = generateFingerprintMarker(fp);
-    expect(marker).toBe('<!-- vibecop:fingerprint=sha256:abc123def456 -->');
+    expect(marker).toBe("<!-- vibecop:fingerprint=sha256:abc123def456 -->");
 
-    const extracted = extractFingerprintFromBody(`Some text\n${marker}\nMore text`);
+    const extracted = extractFingerprintFromBody(
+      `Some text\n${marker}\nMore text`,
+    );
     expect(extracted).toBe(fp);
   });
 
-  it('should return null for body without marker', () => {
-    expect(extractFingerprintFromBody('No marker here')).toBeNull();
+  it("should return null for body without marker", () => {
+    expect(extractFingerprintFromBody("No marker here")).toBeNull();
   });
 
-  it('should generate and extract run metadata', () => {
-    const marker = generateRunMetadataMarker(42, '2026-01-05T00:00:00Z');
-    expect(marker).toBe('<!-- vibecop:run=42:lastSeen=2026-01-05T00:00:00Z -->');
+  it("should generate and extract run metadata", () => {
+    const marker = generateRunMetadataMarker(42, "2026-01-05T00:00:00Z");
+    expect(marker).toBe(
+      "<!-- vibecop:run=42:lastSeen=2026-01-05T00:00:00Z -->",
+    );
 
     const extracted = extractRunMetadata(`Some text\n${marker}\nMore text`);
-    expect(extracted).toEqual({ run: 42, lastSeen: '2026-01-05T00:00:00Z' });
+    expect(extracted).toEqual({ run: 42, lastSeen: "2026-01-05T00:00:00Z" });
   });
 
-  it('should return null for body without run metadata', () => {
-    expect(extractRunMetadata('No metadata here')).toBeNull();
-  });
-});
-
-describe('fingerprintsMatch', () => {
-  it('should match identical fingerprints', () => {
-    expect(fingerprintsMatch('sha256:abc', 'sha256:abc')).toBe(true);
-  });
-
-  it('should match case-insensitively', () => {
-    expect(fingerprintsMatch('sha256:ABC', 'sha256:abc')).toBe(true);
-  });
-
-  it('should not match different fingerprints', () => {
-    expect(fingerprintsMatch('sha256:abc', 'sha256:def')).toBe(false);
+  it("should return null for body without run metadata", () => {
+    expect(extractRunMetadata("No metadata here")).toBeNull();
   });
 });
 
-describe('groupByFingerprint', () => {
-  it('should group items by fingerprint', () => {
+describe("fingerprintsMatch", () => {
+  it("should match identical fingerprints", () => {
+    expect(fingerprintsMatch("sha256:abc", "sha256:abc")).toBe(true);
+  });
+
+  it("should match case-insensitively", () => {
+    expect(fingerprintsMatch("sha256:ABC", "sha256:abc")).toBe(true);
+  });
+
+  it("should not match different fingerprints", () => {
+    expect(fingerprintsMatch("sha256:abc", "sha256:def")).toBe(false);
+  });
+});
+
+describe("groupByFingerprint", () => {
+  it("should group items by fingerprint", () => {
     const items = [
-      { fingerprint: 'a', value: 1 },
-      { fingerprint: 'b', value: 2 },
-      { fingerprint: 'a', value: 3 },
+      { fingerprint: "a", value: 1 },
+      { fingerprint: "b", value: 2 },
+      { fingerprint: "a", value: 3 },
     ];
 
     const groups = groupByFingerprint(items);
     expect(groups.size).toBe(2);
-    expect(groups.get('a')).toHaveLength(2);
-    expect(groups.get('b')).toHaveLength(1);
+    expect(groups.get("a")).toHaveLength(2);
+    expect(groups.get("b")).toHaveLength(1);
   });
 });
 
-describe('deduplicateFindings', () => {
-  it('should keep first occurrence of each fingerprint', () => {
+describe("deduplicateFindings", () => {
+  it("should keep first occurrence of each fingerprint", () => {
     const items = [
-      { fingerprint: 'a', value: 1 },
-      { fingerprint: 'b', value: 2 },
-      { fingerprint: 'a', value: 3 },
+      { fingerprint: "a", value: 1 },
+      { fingerprint: "b", value: 2 },
+      { fingerprint: "a", value: 3 },
     ];
 
     const unique = deduplicateFindings(items);
