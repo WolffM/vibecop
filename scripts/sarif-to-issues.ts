@@ -1,16 +1,15 @@
 /**
  * SARIF to Issues Converter
  *
- * Creates and updates GitHub issues from findings with deduplication,
- * rate limiting, and flap protection.
+ * Creates and updates GitHub issues from findings with deduplication
+ * and rate limiting.
  *
  * Reference: vibeCop_spec.md section 8
  */
 
 import { readFileSync, existsSync } from "node:fs";
-import { deduplicateFindings, FLAP_PROTECTION_RUNS } from "./fingerprints.js";
+import { deduplicateFindings } from "./fingerprints.js";
 import {
-  addIssueComment,
   buildFingerprintMap,
   closeIssue,
   createIssue,
@@ -456,14 +455,15 @@ async function closeDuplicateIssues(
 }
 
 /**
- * Close issues that are no longer detected (with flap protection).
+ * Close issues that are no longer detected.
+ * Issues are closed immediately when their finding is not detected.
  */
 async function closeResolvedIssues(
   owner: string,
   repo: string,
   existingIssues: ExistingIssue[],
   seenFingerprints: Set<string>,
-  currentRun: number,
+  _currentRun: number,
   stats: IssueStats,
 ): Promise<void> {
   for (const issue of existingIssues) {
@@ -475,36 +475,19 @@ async function closeResolvedIssues(
       continue;
     }
 
-    // Calculate consecutive misses
-    const lastSeenRun = issue.metadata.lastSeenRun || 0;
-    const consecutiveMisses = currentRun - lastSeenRun;
+    // Finding not detected - close immediately
+    console.log(`Closing issue #${issue.number} (finding no longer detected)`);
 
-    if (consecutiveMisses >= FLAP_PROTECTION_RUNS) {
-      console.log(
-        `Closing issue #${issue.number} (not seen for ${consecutiveMisses} runs)`,
-      );
+    await withRateLimit(() =>
+      closeIssue(
+        owner,
+        repo,
+        issue.number,
+        `This issue appears to be resolved. The finding was not detected in the latest analysis.\n\nClosed automatically by vibeCop.`,
+      ),
+    );
 
-      await withRateLimit(() =>
-        closeIssue(
-          owner,
-          repo,
-          issue.number,
-          `🎉 This issue appears to be resolved! The finding has not been detected for ${consecutiveMisses} consecutive runs.\n\nClosed automatically by vibeCop.`,
-        ),
-      );
-
-      stats.closed++;
-    } else {
-      // Update the issue with a note that it wasn't detected
-      await withRateLimit(() =>
-        addIssueComment(
-          owner,
-          repo,
-          issue.number,
-          `ℹ️ This finding was not detected in run #${currentRun}. If it remains undetected for ${FLAP_PROTECTION_RUNS - consecutiveMisses} more run(s), this issue will be automatically closed.`,
-        ),
-      );
-    }
+    stats.closed++;
   }
 }
 

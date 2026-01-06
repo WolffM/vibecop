@@ -4,7 +4,6 @@
  * Pure functions for generating GitHub issue content from findings.
  */
 
-import { getSuggestedFix } from "./fix-templates.js";
 import {
   generateFingerprintMarker,
   generateRunMetadataMarker,
@@ -122,7 +121,6 @@ export function getLabelsForFinding(
   const labels = [
     baseLabel,
     `severity:${finding.severity}`,
-    `confidence:${finding.confidence}`,
     `effort:${finding.effort}`,
     `layer:${finding.layer}`,
     `tool:${finding.tool}`,
@@ -236,18 +234,6 @@ function buildEvidenceSection(finding: Finding): string {
 }
 
 /**
- * Build the suggested fix section.
- */
-function buildFixSection(finding: Finding): string {
-  const suggestedFix = finding.suggestedFix || getSuggestedFix(finding);
-  if (!suggestedFix) {
-    return "";
-  }
-
-  return `\n## How to Fix\n\n**Goal:** ${suggestedFix.goal}\n\n**Steps:**\n${suggestedFix.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\n**Done when:**\n${suggestedFix.acceptance.map((a) => `- [ ] ${a}`).join("\n")}`;
-}
-
-/**
  * Build the rule documentation link.
  */
 function buildRuleLink(finding: Finding): string {
@@ -298,15 +284,9 @@ export function generateIssueBody(
   const { mainLocation, additionalLocations, prioritizationHint } =
     buildLocationSection(finding, repo);
   const evidenceSection = buildEvidenceSection(finding);
-  const fixSection = buildFixSection(finding);
   const ruleLink = buildRuleLink(finding);
   const referencesSection = buildReferencesSection(finding);
 
-  // Determine severity description
-  const severityDesc =
-    finding.severity === "critical" || finding.severity === "high"
-      ? "**This issue should be addressed soon.**"
-      : "";
 
   const body = `${severityEmoji} **${finding.severity.toUpperCase()}** severity · ${finding.confidence} confidence · Effort: ${finding.effort}
 
@@ -321,13 +301,10 @@ ${finding.message}
 | Layer | ${finding.layer} |
 | Autofix | ${finding.autofix === "safe" ? "✅ Safe autofix available" : finding.autofix === "requires_review" ? "⚠️ Autofix requires review" : "Manual fix required"} |
 
-${severityDesc}
-
 ## Location
 
 ${mainLocation}${additionalLocations}${prioritizationHint}
 ${evidenceSection}
-${fixSection}
 ${referencesSection}
 
 ---
