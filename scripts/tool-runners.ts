@@ -371,13 +371,25 @@ export function runKnip(rootPath: string, configPath?: string): Finding[] {
 
     // knip outputs JSON to stdout, exits with code 1 if issues found
     const output = result.stdout || "";
+    const stderr = result.stderr || "";
+
+    // Check for known non-fatal errors (e.g., missing ESLint dependencies)
+    // These don't prevent knip from running, just from analyzing ESLint config
+    if (stderr.includes("Error loading") && stderr.includes("eslint.config")) {
+      console.log(
+        "  Note: ESLint config loading failed (missing dependencies in target repo)",
+      );
+      console.log("  Knip will still analyze other aspects of the codebase");
+    }
+
     const parsed = safeParseJson<KnipOutput>(output);
     if (parsed) {
       const findings = parseKnipOutput(parsed);
       console.log(`  Found ${findings.length} findings`);
       return findings;
-    } else if (result.stderr) {
-      console.log(`  stderr: ${result.stderr.substring(0, 200)}`);
+    } else if (stderr && !stderr.includes("Error loading")) {
+      // Only log stderr if it's not the known ESLint loading issue
+      console.log(`  stderr: ${stderr.substring(0, 200)}`);
     }
   } catch (error) {
     console.warn("knip failed:", error);
