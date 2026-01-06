@@ -19,6 +19,11 @@ import {
   parseDepcruiseOutput,
   parseKnipOutput,
   parseSemgrepOutput,
+  parseRuffOutput,
+  parseMypyOutput,
+  parseBanditOutput,
+  parsePmdOutput,
+  parseSpotBugsOutput,
 } from "./parsers.js";
 import { buildSarifLog, writeSarifFile } from "./build-sarif.js";
 import { buildLlmJson, writeLlmJsonFile } from "./build-llm-json.js";
@@ -171,7 +176,9 @@ function runTrunk(rootPath: string, args: string[] = ["check"]): Finding[] {
         console.log(`  Using trunk from TRUNK_PATH: ${trunkPathEnv}`);
         trunkCmd = [trunkPathEnv];
       } else {
-        console.log(`  TRUNK_PATH set but trunk not working: ${versionCheck.stderr}`);
+        console.log(
+          `  TRUNK_PATH set but trunk not working: ${versionCheck.stderr}`,
+        );
         trunkCmd = [];
       }
     } else {
@@ -218,14 +225,18 @@ function runTrunk(rootPath: string, args: string[] = ["check"]): Finding[] {
         },
       );
       if (initResult.status !== 0) {
-        console.log(`  Trunk init failed: ${initResult.stderr || initResult.stdout}`);
+        console.log(
+          `  Trunk init failed: ${initResult.stderr || initResult.stdout}`,
+        );
         return [];
       }
       console.log("  Trunk initialized successfully");
     }
 
     const trunkArgs = [...args, "--output=json", "--no-progress"];
-    console.log(`  Running: ${trunkCmd[0]} ${[...trunkCmd.slice(1), ...trunkArgs].join(" ")}`);
+    console.log(
+      `  Running: ${trunkCmd[0]} ${[...trunkCmd.slice(1), ...trunkArgs].join(" ")}`,
+    );
 
     const trunkResult = spawnSync(
       trunkCmd[0],
@@ -325,6 +336,31 @@ function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
     const outputDir = join(rootPath, ".vibecop-output");
     const outputPath = join(outputDir, "jscpd-report.json");
 
+    // Files/patterns that commonly have legitimate duplicate content
+    const ignorePatterns = [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.git/**",
+      "**/.vibecop-output/**",
+      "**/.trunk/**",
+      // Lock files - always have duplicate structure
+      "**/package-lock.json",
+      "**/pnpm-lock.yaml",
+      "**/yarn.lock",
+      "**/Gemfile.lock",
+      "**/Cargo.lock",
+      "**/poetry.lock",
+      "**/composer.lock",
+      // Generated/minified files
+      "**/*.min.js",
+      "**/*.min.css",
+      "**/vendor/**",
+      // Test snapshots
+      "**/__snapshots__/**",
+      "**/*.snap",
+    ];
+
     // Run jscpd - we don't need the result, just the output file
     spawnSync(
       "npx",
@@ -335,7 +371,7 @@ function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
         "--min-lines=5",
         "--reporters=json",
         `--output=${outputDir}`,
-        '--ignore="**/node_modules/**,**/dist/**,**/build/**,**/.git/**,**/.vibecop-output/**,**/.trunk/**"',
+        `--ignore="${ignorePatterns.join(",")}"`,
       ],
       {
         cwd: rootPath,
@@ -346,7 +382,9 @@ function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
 
     if (existsSync(outputPath)) {
       const output = JSON.parse(readFileSync(outputPath, "utf-8"));
-      return parseJscpdOutput(output);
+      const findings = parseJscpdOutput(output);
+      console.log(`  Found ${findings.length} findings`);
+      return findings;
     }
   } catch (error) {
     console.warn("jscpd failed:", error);
@@ -357,6 +395,7 @@ function runJscpd(rootPath: string, minTokens: number = 70): Finding[] {
 
 /**
  * Run dependency-cruiser for circular dependencies and architecture violations.
+ * Runs with --no-config if no config file exists (uses built-in rules for cycles).
  */
 function runDependencyCruiser(
   rootPath: string,
@@ -364,44 +403,73 @@ function runDependencyCruiser(
 ): Finding[] {
   console.log("Running dependency-cruiser...");
 
-  const config = configPath || ".dependency-cruiser.cjs";
-  const fullConfigPath = join(rootPath, config);
-
-  if (!existsSync(fullConfigPath)) {
-    console.log(`  No config found at ${config}, skipping`);
-    return [];
-  }
-
   try {
-    const result = spawnSync(
-      "pnpm",
-      [
-        "exec",
-        "dependency-cruiser",
-        "scripts",
-        "test-fixtures",
-        "--config",
-        config,
-        "--output-type",
-        "json",
-      ],
-      {
-        cwd: rootPath,
-        encoding: "utf-8",
-        shell: true,
-        maxBuffer: 50 * 1024 * 1024,
-      },
-    );
+    // Check if dependency-cruiser is available
+    const versionCheck = spawnSync("pnpm", ["exec", "depcruise", "--version"], {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  dependency-cruiser not installed, skipping");
+      return [];
+    }
+
+    // Determine source directories to scan
+    const srcDirs: string[] = [];
+    const commonDirs = ["src", "lib", "app", "scripts", "packages"];
+    for (const dir of commonDirs) {
+      if (existsSync(join(rootPath, dir))) {
+        srcDirs.push(dir);
+      }
+    }
+
+    if (srcDirs.length === 0) {
+      console.log(
+        "  No source directories found (src, lib, app, scripts, packages)",
+      );
+      return [];
+    }
+
+    // Check for config file
+    const config = configPath || ".dependency-cruiser.cjs";
+    const fullConfigPath = join(rootPath, config);
+    const hasConfig = existsSync(fullConfigPath);
+
+    // Build args - use --no-config with --validate for cycle detection if no config
+    const args = ["exec", "depcruise", ...srcDirs, "--output-type", "json"];
+
+    if (hasConfig) {
+      args.push("--config", config);
+      console.log(`  Using config: ${config}`);
+    } else {
+      // Run with built-in cycle detection (no custom config needed)
+      args.push("--no-config", "--validate", "true");
+      console.log("  Running with built-in cycle detection (no config file)");
+    }
+
+    const result = spawnSync("pnpm", args, {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+      maxBuffer: 50 * 1024 * 1024,
+    });
 
     // dependency-cruiser outputs JSON to stdout even with violations
     const output = result.stdout;
     if (output && output.trim().startsWith("{")) {
       try {
         const depcruiseOutput = JSON.parse(output);
-        return parseDepcruiseOutput(depcruiseOutput);
+        const findings = parseDepcruiseOutput(depcruiseOutput);
+        console.log(`  Found ${findings.length} findings`);
+        return findings;
       } catch (e) {
         console.warn("Failed to parse dependency-cruiser JSON output:", e);
       }
+    } else if (result.stderr) {
+      // Log first part of stderr for debugging
+      console.log(`  stderr: ${result.stderr.substring(0, 200)}`);
     }
   } catch (error) {
     console.warn("dependency-cruiser failed:", error);
@@ -412,20 +480,48 @@ function runDependencyCruiser(
 
 /**
  * Run knip for unused exports and dead code detection.
+ * Knip auto-detects project structure - no config file required.
  */
 function runKnip(rootPath: string, configPath?: string): Finding[] {
   console.log("Running knip...");
 
-  const config = configPath || "knip.json";
-  const fullConfigPath = join(rootPath, config);
-
-  if (!existsSync(fullConfigPath)) {
-    console.log(`  No config found at ${config}, skipping`);
-    return [];
-  }
-
   try {
-    const result = spawnSync("pnpm", ["exec", "knip", "--reporter", "json"], {
+    // Check if knip is available
+    const versionCheck = spawnSync("pnpm", ["exec", "knip", "--version"], {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  knip not installed, skipping");
+      return [];
+    }
+
+    // Build args - knip auto-detects project structure without config
+    const args = ["exec", "knip", "--reporter", "json"];
+
+    // Check for config file (optional)
+    const config = configPath || "knip.json";
+    const fullConfigPath = join(rootPath, config);
+    const hasConfig = existsSync(fullConfigPath);
+
+    if (hasConfig) {
+      args.push("--config", config);
+      console.log(`  Using config: ${config}`);
+    } else {
+      // Try alternative config locations
+      const altConfigs = ["knip.jsonc", "knip.ts", ".knip.json", ".knip.jsonc"];
+      const foundAlt = altConfigs.find((c) => existsSync(join(rootPath, c)));
+      if (foundAlt) {
+        args.push("--config", foundAlt);
+        console.log(`  Using config: ${foundAlt}`);
+      } else {
+        console.log("  Running with auto-detection (no config file)");
+      }
+    }
+
+    const result = spawnSync("pnpm", args, {
       cwd: rootPath,
       encoding: "utf-8",
       shell: true,
@@ -437,10 +533,15 @@ function runKnip(rootPath: string, configPath?: string): Finding[] {
     if (output && output.trim().startsWith("{")) {
       try {
         const knipOutput = JSON.parse(output);
-        return parseKnipOutput(knipOutput);
+        const findings = parseKnipOutput(knipOutput);
+        console.log(`  Found ${findings.length} findings`);
+        return findings;
       } catch (e) {
         console.warn("Failed to parse knip JSON output:", e);
       }
+    } else if (result.stderr) {
+      // Log first part of stderr for debugging
+      console.log(`  stderr: ${result.stderr.substring(0, 200)}`);
     }
   } catch (error) {
     console.warn("knip failed:", error);
@@ -504,6 +605,290 @@ function runSemgrep(rootPath: string, configPath?: string): Finding[] {
     }
   } catch (error) {
     console.warn("semgrep failed:", error);
+  }
+
+  return [];
+}
+
+// ============================================================================
+// Python Tool Runners
+// ============================================================================
+
+/**
+ * Run Ruff linter for Python code.
+ */
+function runRuff(rootPath: string, configPath?: string): Finding[] {
+  console.log("Running ruff...");
+
+  try {
+    // Check if ruff is available
+    const versionCheck = spawnSync("ruff", ["--version"], {
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  Ruff not installed, skipping");
+      return [];
+    }
+
+    const args = ["check", "--output-format", "json"];
+    if (configPath) {
+      args.push("--config", configPath);
+    }
+    args.push(".");
+
+    const result = spawnSync("ruff", args, {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+
+    // Ruff outputs JSON array to stdout
+    const output = result.stdout || "";
+    if (output.trim().startsWith("[")) {
+      try {
+        const ruffOutput = JSON.parse(output);
+        return parseRuffOutput(ruffOutput);
+      } catch (e) {
+        console.warn("Failed to parse ruff JSON output:", e);
+      }
+    }
+  } catch (error) {
+    console.warn("ruff failed:", error);
+  }
+
+  return [];
+}
+
+/**
+ * Run Mypy type checker for Python code.
+ */
+function runMypy(rootPath: string, configPath?: string): Finding[] {
+  console.log("Running mypy...");
+
+  try {
+    // Check if mypy is available
+    const versionCheck = spawnSync("mypy", ["--version"], {
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  Mypy not installed, skipping");
+      return [];
+    }
+
+    // Use --output=json for native JSON output (Python 3.10+)
+    const args = ["--output", "json"];
+    if (configPath) {
+      args.push("--config-file", configPath);
+    }
+    args.push(".");
+
+    const result = spawnSync("mypy", args, {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+
+    // Mypy JSON output is one JSON object per line
+    const output = result.stdout || "";
+    const errors: Array<{
+      file: string;
+      line: number;
+      column: number;
+      message: string;
+      hint: string | null;
+      code: string | null;
+      severity: string;
+    }> = [];
+
+    for (const line of output.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("{")) {
+        try {
+          errors.push(JSON.parse(trimmed));
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      return parseMypyOutput(errors);
+    }
+  } catch (error) {
+    console.warn("mypy failed:", error);
+  }
+
+  return [];
+}
+
+/**
+ * Run Bandit security scanner for Python code.
+ */
+function runBandit(rootPath: string, configPath?: string): Finding[] {
+  console.log("Running bandit...");
+
+  try {
+    // Check if bandit is available
+    const versionCheck = spawnSync("bandit", ["--version"], {
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  Bandit not installed, skipping");
+      return [];
+    }
+
+    const args = ["-f", "json", "-r", "."];
+    if (configPath) {
+      args.push("-c", configPath);
+    }
+
+    const result = spawnSync("bandit", args, {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+
+    // Bandit outputs JSON to stdout
+    const output = result.stdout || "";
+    if (output.trim().startsWith("{")) {
+      try {
+        const banditOutput = JSON.parse(output);
+        return parseBanditOutput(banditOutput);
+      } catch (e) {
+        console.warn("Failed to parse bandit JSON output:", e);
+      }
+    }
+  } catch (error) {
+    console.warn("bandit failed:", error);
+  }
+
+  return [];
+}
+
+// ============================================================================
+// Java Tool Runners
+// ============================================================================
+
+/**
+ * Run PMD static analyzer for Java code.
+ */
+function runPmd(rootPath: string, configPath?: string): Finding[] {
+  console.log("Running PMD...");
+
+  try {
+    // Check if pmd is available (could be 'pmd' or installed via path)
+    const versionCheck = spawnSync("pmd", ["--version"], {
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  PMD not installed, skipping");
+      return [];
+    }
+
+    // Use quickstart ruleset if no config provided
+    const rulesets = configPath || "rulesets/java/quickstart.xml";
+    const args = [
+      "check",
+      "-d",
+      ".",
+      "-R",
+      rulesets,
+      "-f",
+      "json",
+      "--no-progress",
+    ];
+
+    const result = spawnSync("pmd", args, {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+
+    // PMD outputs JSON to stdout
+    const output = result.stdout || "";
+    if (output.trim().startsWith("{")) {
+      try {
+        const pmdOutput = JSON.parse(output);
+        return parsePmdOutput(pmdOutput);
+      } catch (e) {
+        console.warn("Failed to parse PMD JSON output:", e);
+      }
+    }
+  } catch (error) {
+    console.warn("PMD failed:", error);
+  }
+
+  return [];
+}
+
+/**
+ * Run SpotBugs bytecode analyzer for Java code.
+ * Note: SpotBugs requires compiled .class files.
+ */
+function runSpotBugs(rootPath: string, configPath?: string): Finding[] {
+  console.log("Running SpotBugs...");
+
+  try {
+    // Check if compiled classes exist
+    const targetClasses = join(rootPath, "target", "classes");
+    const buildClasses = join(rootPath, "build", "classes");
+
+    if (!existsSync(targetClasses) && !existsSync(buildClasses)) {
+      console.log(
+        "  No compiled classes found (target/classes or build/classes), skipping",
+      );
+      return [];
+    }
+
+    const classesDir = existsSync(targetClasses) ? targetClasses : buildClasses;
+
+    // Check if spotbugs is available
+    const versionCheck = spawnSync("spotbugs", ["--version"], {
+      encoding: "utf-8",
+      shell: true,
+    });
+
+    if (versionCheck.error || versionCheck.status !== 0) {
+      console.log("  SpotBugs not installed, skipping");
+      return [];
+    }
+
+    const args = ["-sarif", classesDir];
+    if (configPath) {
+      args.unshift("-exclude", configPath);
+    }
+
+    const result = spawnSync("spotbugs", args, {
+      cwd: rootPath,
+      encoding: "utf-8",
+      shell: true,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+
+    // SpotBugs outputs SARIF to stdout when using -sarif
+    const output = result.stdout || "";
+    if (output.includes('"$schema"') && output.includes('"runs"')) {
+      try {
+        const spotbugsOutput = JSON.parse(output);
+        return parseSpotBugsOutput(spotbugsOutput);
+      } catch (e) {
+        console.warn("Failed to parse SpotBugs SARIF output:", e);
+      }
+    }
+  } catch (error) {
+    console.warn("SpotBugs failed:", error);
   }
 
   return [];
@@ -676,6 +1061,88 @@ export async function analyze(
     console.log(`  semgrep: ${semgrepFindings.length} findings`);
   }
 
+  // Python tools (only if Python detected)
+  if (profile.hasPython) {
+    // Ruff (daily - fast linting)
+    if (
+      shouldRunTool(
+        config.tools?.ruff?.enabled || "daily",
+        profile,
+        cadence,
+        () => profile.hasPython,
+      )
+    ) {
+      const ruffFindings = runRuff(rootPath, config.tools?.ruff?.config_path);
+      allFindings.push(...ruffFindings);
+      console.log(`  ruff: ${ruffFindings.length} findings`);
+    }
+
+    // Mypy (daily - type checking)
+    if (
+      shouldRunTool(
+        config.tools?.mypy?.enabled || "daily",
+        profile,
+        cadence,
+        () => profile.hasPython,
+      )
+    ) {
+      const mypyFindings = runMypy(rootPath, config.tools?.mypy?.config_path);
+      allFindings.push(...mypyFindings);
+      console.log(`  mypy: ${mypyFindings.length} findings`);
+    }
+
+    // Bandit (weekly - security scanning)
+    if (
+      shouldRunTool(
+        config.tools?.bandit?.enabled || "weekly",
+        profile,
+        cadence,
+        () => profile.hasPython,
+      )
+    ) {
+      const banditFindings = runBandit(
+        rootPath,
+        config.tools?.bandit?.config_path,
+      );
+      allFindings.push(...banditFindings);
+      console.log(`  bandit: ${banditFindings.length} findings`);
+    }
+  }
+
+  // Java tools (only if Java detected)
+  if (profile.hasJava) {
+    // PMD (weekly - code analysis)
+    if (
+      shouldRunTool(
+        config.tools?.pmd?.enabled || "weekly",
+        profile,
+        cadence,
+        () => profile.hasJava,
+      )
+    ) {
+      const pmdFindings = runPmd(rootPath, config.tools?.pmd?.config_path);
+      allFindings.push(...pmdFindings);
+      console.log(`  PMD: ${pmdFindings.length} findings`);
+    }
+
+    // SpotBugs (monthly - bytecode analysis)
+    if (
+      shouldRunTool(
+        config.tools?.spotbugs?.enabled || "monthly",
+        profile,
+        cadence,
+        () => profile.hasJava,
+      )
+    ) {
+      const spotbugsFindings = runSpotBugs(
+        rootPath,
+        config.tools?.spotbugs?.config_path,
+      );
+      allFindings.push(...spotbugsFindings);
+      console.log(`  SpotBugs: ${spotbugsFindings.length} findings`);
+    }
+  }
+
   console.log("");
 
   // Step 4: Deduplicate findings
@@ -758,16 +1225,33 @@ export async function analyze(
   console.log("");
 
   // Step 6: Create/update issues (use merged findings)
+  let issueStats = { created: 0, updated: 0, closed: 0 };
   if (
     !options.skipIssues &&
     config.issues?.enabled !== false &&
     process.env.GITHUB_TOKEN
   ) {
     console.log("Step 6: Processing GitHub issues...");
-    const issueStats = await processFindings(mergedFindings, context);
+    const stats = await processFindings(mergedFindings, context);
+    issueStats = {
+      created: stats.created,
+      updated: stats.updated,
+      closed: stats.closed,
+    };
     console.log(`  Created: ${issueStats.created}`);
     console.log(`  Updated: ${issueStats.updated}`);
     console.log(`  Closed: ${issueStats.closed}`);
+
+    // Update LLM JSON with issue stats
+    if (config.output?.llm_json !== false) {
+      const llmJsonPath = join(outputDir, "results.llm.json");
+      const llmJsonContent = JSON.parse(readFileSync(llmJsonPath, "utf-8"));
+      llmJsonContent.summary.issuesCreated = issueStats.created;
+      llmJsonContent.summary.issuesUpdated = issueStats.updated;
+      llmJsonContent.summary.issuesClosed = issueStats.closed;
+      writeFileSync(llmJsonPath, JSON.stringify(llmJsonContent, null, 2));
+      console.log(`  Updated LLM JSON with issue stats`);
+    }
   } else {
     console.log("Step 6: Skipping GitHub issues (disabled or no token)");
   }

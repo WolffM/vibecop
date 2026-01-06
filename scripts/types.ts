@@ -52,6 +52,36 @@ interface SemgrepConfig extends ToolConfig {
   rules_path?: string;
 }
 
+// Python tool configs
+interface RuffConfig extends ToolConfig {
+  config_path?: string;
+  select?: string[]; // Rule selection
+  ignore?: string[]; // Rules to ignore
+}
+
+interface MypyConfig extends ToolConfig {
+  config_path?: string;
+  strict?: boolean;
+}
+
+interface BanditConfig extends ToolConfig {
+  config_path?: string;
+  confidence?: "low" | "medium" | "high";
+  severity?: "low" | "medium" | "high";
+}
+
+// Java tool configs
+interface PmdConfig extends ToolConfig {
+  config_path?: string;
+  rulesets?: string[]; // PMD rulesets to use
+}
+
+interface SpotBugsConfig extends ToolConfig {
+  config_path?: string;
+  effort?: "min" | "default" | "max";
+  threshold?: "low" | "medium" | "high";
+}
+
 export interface ToolsConfig {
   tsc?: TscConfig;
   eslint?: EslintConfig;
@@ -60,6 +90,13 @@ export interface ToolsConfig {
   dependency_cruiser?: DependencyCruiserConfig;
   knip?: KnipConfig;
   semgrep?: SemgrepConfig;
+  // Python tools
+  ruff?: RuffConfig;
+  mypy?: MypyConfig;
+  bandit?: BanditConfig;
+  // Java tools
+  pmd?: PmdConfig;
+  spotbugs?: SpotBugsConfig;
 }
 
 export interface TrunkConfig {
@@ -118,6 +155,9 @@ export const DEFAULT_CONFIG: VibeCopConfig = {
     confidence_threshold: "low",
     close_resolved: true, // Auto-close issues when findings are resolved
     assignees: [],
+  },
+  llm: {
+    agent_hint: "codex",
     pr_branch_prefix: "vibecop/fix-",
   },
 };
@@ -148,6 +188,13 @@ export interface RepoProfile {
   hasDependencyCruiser: boolean;
   hasKnip: boolean;
   rootPath: string;
+  // Python/Java detection
+  hasPython: boolean;
+  hasJava: boolean;
+  hasRuff: boolean;
+  hasMypy: boolean;
+  hasPmd: boolean;
+  hasSpotBugs: boolean;
 }
 
 // ============================================================================
@@ -182,6 +229,11 @@ export type ToolName =
   | "knip"
   | "semgrep"
   | "trunk"
+  | "ruff"
+  | "mypy"
+  | "bandit"
+  | "pmd"
+  | "spotbugs"
   | "custom";
 
 export interface Finding {
@@ -220,6 +272,10 @@ export interface LlmJsonSummary {
   actionable: number;
   bySeverity: Record<Severity, number>;
   byTool: Record<string, number>;
+  // Issue stats (populated after issue processing)
+  issuesCreated?: number;
+  issuesUpdated?: number;
+  issuesClosed?: number;
 }
 
 export interface LlmJsonOutput {

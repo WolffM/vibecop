@@ -13,6 +13,7 @@ import {
   FLAP_PROTECTION_RUNS,
   generateFingerprintMarker,
   generateRunMetadataMarker,
+  isTestFixtureFinding,
   shortFingerprint,
 } from "./fingerprints.js";
 import {
@@ -35,74 +36,211 @@ import type { ExistingIssue, Finding, RunContext } from "./types.js";
 // ============================================================================
 
 /**
+ * Get the documentation URL for a rule ID.
+ */
+function getRuleDocUrl(tool: string, ruleId: string): string | null {
+  // ESLint rules
+  if (tool === "eslint" || tool === "trunk") {
+    // Check for GHSA (GitHub Security Advisory)
+    if (ruleId.startsWith("GHSA-")) {
+      return `https://github.com/advisories/${ruleId}`;
+    }
+    // Check for CWE
+    if (ruleId.startsWith("CWE-")) {
+      return `https://cwe.mitre.org/data/definitions/${ruleId.replace("CWE-", "")}.html`;
+    }
+    // Check for Checkov rules
+    if (ruleId.startsWith("CKV_")) {
+      return `https://www.checkov.io/5.Policy%20Index/${ruleId}.html`;
+    }
+    // ESLint core rules
+    if (ruleId.match(/^[a-z-]+$/)) {
+      return `https://eslint.org/docs/rules/${ruleId}`;
+    }
+    // TypeScript ESLint rules
+    if (ruleId.startsWith("@typescript-eslint/")) {
+      return `https://typescript-eslint.io/rules/${ruleId.replace("@typescript-eslint/", "")}`;
+    }
+  }
+
+  // Semgrep rules
+  if (tool === "semgrep") {
+    return `https://semgrep.dev/r?q=${encodeURIComponent(ruleId)}`;
+  }
+
+  // Ruff rules
+  if (tool === "ruff") {
+    return `https://docs.astral.sh/ruff/rules/${ruleId}`;
+  }
+
+  // PMD rules
+  if (tool === "pmd") {
+    return `https://pmd.github.io/latest/pmd_rules_java.html`;
+  }
+
+  return null;
+}
+
+/**
+ * Get a severity emoji for visual distinction.
+ */
+function getSeverityEmoji(severity: string): string {
+  switch (severity) {
+    case "critical":
+      return "🔴";
+    case "high":
+      return "🟠";
+    case "medium":
+      return "🟡";
+    case "low":
+      return "🔵";
+    default:
+      return "⚪";
+  }
+}
+
+/**
+ * Format a GitHub file link.
+ */
+function formatGitHubLink(
+  repo: { owner: string; name: string; commit: string },
+  location: { path: string; startLine: number; endLine?: number },
+): string {
+  const lineRange =
+    location.endLine && location.endLine !== location.startLine
+      ? `L${location.startLine}-L${location.endLine}`
+      : `L${location.startLine}`;
+  return `https://github.com/${repo.owner}/${repo.name}/blob/${repo.commit}/${location.path}#${lineRange}`;
+}
+
+/**
  * Generate the issue body for a finding.
  */
 function generateIssueBody(finding: Finding, context: RunContext): string {
   const { repo, runNumber } = context;
   const timestamp = new Date().toISOString();
   const location = finding.locations[0];
+  const severityEmoji = getSeverityEmoji(finding.severity);
 
-  const locationStr = location
-    ? `\`${location.path}\` (line ${location.startLine}${location.endLine && location.endLine !== location.startLine ? `-${location.endLine}` : ""})`
-    : "Unknown location";
+  // Build location section with clickable GitHub links
+  let locationSection = "";
+  if (location) {
+    const link = formatGitHubLink(repo, location);
+    locationSection = `[**\`${location.path}\`**](${link}) (line ${location.startLine}${location.endLine && location.endLine !== location.startLine ? `-${location.endLine}` : ""})`;
+  } else {
+    locationSection = "Unknown location";
+  }
 
-  const evidenceSection = finding.evidence?.snippet
-    ? `
-## Evidence
+  // Handle multiple locations - always show all, use collapsible for large lists
+  let additionalLocations = "";
+  if (finding.locations.length > 1) {
+    const otherLocations = finding.locations.slice(1);
+    const locationLines = otherLocations.map((loc) => {
+      const link = formatGitHubLink(repo, loc);
+      return `- [\`${loc.path}\`](${link}) line ${loc.startLine}`;
+    });
 
-\`\`\`
-${finding.evidence.snippet}
-\`\`\`
-`
-    : "";
+    if (otherLocations.length <= 10) {
+      // Show inline for up to 10 additional locations
+      additionalLocations = `\n\n**Additional locations (${otherLocations.length}):**\n${locationLines.join("\n")}`;
+    } else {
+      // Use collapsible section for more than 10 locations
+      additionalLocations = `\n\n<details>\n<summary><strong>View all ${otherLocations.length} additional locations</strong></summary>\n\n${locationLines.join("\n")}\n</details>`;
+    }
+  }
 
+  // Build evidence section (limit to first 3 snippets, max 50 lines each)
+  let evidenceSection = "";
+  if (finding.evidence?.snippet) {
+    const snippets = finding.evidence.snippet.split("\n---\n");
+    const limitedSnippets = snippets.slice(0, 3);
+    const truncatedSnippets = limitedSnippets.map((s) => {
+      const lines = s.split("\n");
+      if (lines.length > 50) {
+        return lines.slice(0, 50).join("\n") + "\n... (truncated)";
+      }
+      return s;
+    });
+
+    if (truncatedSnippets.length === 1) {
+      evidenceSection = `\n## Code Sample\n\n\`\`\`\n${truncatedSnippets[0].trim()}\n\`\`\``;
+    } else {
+      const snippetContent = truncatedSnippets
+        .map((s, i) => `**Sample ${i + 1}:**\n\`\`\`\n${s.trim()}\n\`\`\``)
+        .join("\n\n");
+      evidenceSection = `\n## Code Samples\n\n${snippetContent}`;
+      if (snippets.length > 3) {
+        evidenceSection += `\n\n*${snippets.length - 3} additional code samples omitted*`;
+      }
+    }
+  }
+
+  // Build suggested fix section
   const suggestedFix = finding.suggestedFix;
-  const fixSection = suggestedFix
-    ? `
-## Suggested Fix
+  let fixSection = "";
+  if (suggestedFix) {
+    fixSection = `\n## How to Fix\n\n**Goal:** ${suggestedFix.goal}\n\n**Steps:**\n${suggestedFix.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\n**Done when:**\n${suggestedFix.acceptance.map((a) => `- [ ] ${a}`).join("\n")}`;
+  }
 
-**Goal:** ${suggestedFix.goal}
+  // Build rule documentation link
+  const ruleDocUrl = getRuleDocUrl(finding.tool, finding.ruleId);
+  const ruleLink = ruleDocUrl
+    ? `[\`${finding.ruleId}\`](${ruleDocUrl})`
+    : `\`${finding.ruleId}\``;
 
-**Steps:**
-${suggestedFix.steps.map((s) => `1. ${s}`).join("\n")}
+  // Build evidence links section
+  let referencesSection = "";
+  if (finding.evidence?.links && finding.evidence.links.length > 0) {
+    const linkList = finding.evidence.links
+      .filter((l) => l && l.startsWith("http"))
+      .map((l) => `- ${l}`)
+      .join("\n");
+    if (linkList) {
+      referencesSection = `\n## References\n\n${linkList}`;
+    }
+  }
 
-**Acceptance Criteria:**
-${suggestedFix.acceptance.map((a) => `- [ ] ${a}`).join("\n")}
-`
-    : "";
+  // Determine issue description based on severity
+  const severityDesc =
+    finding.severity === "critical" || finding.severity === "high"
+      ? "**This issue should be addressed soon.**"
+      : "";
 
-  const branchPrefix = context.config.llm?.pr_branch_prefix || "vibecop/";
-
-  const body = `## Summary
-
-**Tool:** \`${finding.tool}\`
-**Rule:** \`${finding.ruleId}\`
-**Severity:** ${finding.severity}
-**Confidence:** ${finding.confidence}
-**Effort:** ${finding.effort}
-**Layer:** ${finding.layer}
+  const body = `${severityEmoji} **${finding.severity.toUpperCase()}** severity · ${finding.confidence} confidence · Effort: ${finding.effort}
 
 ${finding.message}
 
+## Details
+
+| Property | Value |
+|----------|-------|
+| Tool | \`${finding.tool}\` |
+| Rule | ${ruleLink} |
+| Layer | ${finding.layer} |
+| Autofix | ${finding.autofix === "safe" ? "✅ Safe autofix available" : finding.autofix === "requires_review" ? "⚠️ Autofix requires review" : "Manual fix required"} |
+
+${severityDesc}
+
 ## Location
 
-${locationStr}
-${finding.locations.length > 1 ? `\n*Plus ${finding.locations.length - 1} additional location(s)*` : ""}
+${locationSection}${additionalLocations}
 ${evidenceSection}
 ${fixSection}
-
-## Suggested Branch
-
-\`${branchPrefix}${shortFingerprint(finding.fingerprint)}/${finding.ruleId.replace(/[^a-z0-9]/gi, "-").toLowerCase()}\`
-
-## Metadata
-
-- **Fingerprint:** \`${shortFingerprint(finding.fingerprint)}\`
-- **Commit:** \`${repo.commit.substring(0, 7)}\`
-- **Run:** #${runNumber}
-- **Generated:** ${timestamp}
+${referencesSection}
 
 ---
+
+<details>
+<summary>Metadata (for automation)</summary>
+
+- **Fingerprint:** \`${shortFingerprint(finding.fingerprint)}\`
+- **Full fingerprint:** \`${finding.fingerprint}\`
+- **Commit:** [\`${repo.commit.substring(0, 7)}\`](https://github.com/${repo.owner}/${repo.name}/commit/${repo.commit})
+- **Run:** #${runNumber}
+- **Generated:** ${timestamp}
+- **Branch suggestion:** \`vibecop/fix-${shortFingerprint(finding.fingerprint)}\`
+
+</details>
 
 ${generateFingerprintMarker(finding.fingerprint)}
 ${generateRunMetadataMarker(runNumber, timestamp)}
@@ -142,6 +280,11 @@ function getLabelsForFinding(finding: Finding, baseLabel: string): string[] {
 
   if (finding.autofix === "safe") {
     labels.push("autofix:safe");
+  }
+
+  // Add "demo" label for test-fixtures findings
+  if (isTestFixtureFinding(finding)) {
+    labels.push("demo");
   }
 
   return labels;

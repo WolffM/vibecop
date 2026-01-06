@@ -77,14 +77,49 @@ runs:
     - name: Setup Trunk
       uses: trunk-io/trunk-action/setup@v1
 
-    - name: Setup Python (for Semgrep)
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
 
-    - name: Install Semgrep
+    - name: Install Python Analysis Tools
       shell: bash
-      run: pip install semgrep
+      run: |
+        # Always install semgrep for security scanning
+        pip install semgrep
+
+        # Install Python-specific tools if Python files detected
+        if find "${{ github.workspace }}" -name "*.py" -type f | head -1 | grep -q .; then
+          echo "Python files detected, installing Python analysis tools..."
+          pip install ruff mypy bandit
+        fi
+
+    - name: Setup Java (if needed)
+      if: hashFiles('**/pom.xml', '**/build.gradle', '**/build.gradle.kts') != ''
+      uses: actions/setup-java@v4
+      with:
+        distribution: "temurin"
+        java-version: "17"
+
+    - name: Install PMD (if Java detected)
+      if: hashFiles('**/pom.xml', '**/build.gradle', '**/build.gradle.kts') != ''
+      shell: bash
+      run: |
+        echo "Java files detected, installing PMD..."
+        PMD_VERSION="7.0.0"
+        curl -L "https://github.com/pmd/pmd/releases/download/pmd_releases%2F${PMD_VERSION}/pmd-dist-${PMD_VERSION}-bin.zip" -o pmd.zip
+        unzip -q pmd.zip -d /tmp
+        echo "/tmp/pmd-bin-${PMD_VERSION}/bin" >> $GITHUB_PATH
+
+    - name: Install SpotBugs (if Java detected)
+      if: hashFiles('**/pom.xml', '**/build.gradle', '**/build.gradle.kts') != ''
+      shell: bash
+      run: |
+        echo "Installing SpotBugs..."
+        SPOTBUGS_VERSION="4.8.3"
+        curl -L "https://github.com/spotbugs/spotbugs/releases/download/${SPOTBUGS_VERSION}/spotbugs-${SPOTBUGS_VERSION}.tgz" -o spotbugs.tgz
+        tar -xzf spotbugs.tgz -C /tmp
+        echo "/tmp/spotbugs-${SPOTBUGS_VERSION}/bin" >> $GITHUB_PATH
 
     - name: Run Analysis
       id: analyze

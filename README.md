@@ -8,7 +8,10 @@ vibeCop is a **GitHub Action** that runs static analysis on any repository and t
 
 ## Features
 
-- 🔍 **Multi-tool analysis**: Trunk, TypeScript, jscpd, dependency-cruiser, knip, Semgrep
+- 🔍 **Multi-language analysis**: JavaScript/TypeScript, Python, and Java
+- 🛠️ **JS/TS tools**: Trunk, TypeScript, ESLint, jscpd, dependency-cruiser, knip, Semgrep
+- 🐍 **Python tools**: Ruff (linting), Mypy (types), Bandit (security)
+- ☕ **Java tools**: PMD (code analysis), SpotBugs (bytecode bugs)
 - 📊 **SARIF output**: Results appear in GitHub Code Scanning
 - 🤖 **AI-friendly issues**: Structured with suggested fixes and acceptance criteria
 - 🔁 **Deduplication**: Stable fingerprints prevent duplicate issues across runs
@@ -241,6 +244,8 @@ Tools can be enabled with:
 - `auto`: Run if config file detected (e.g., `eslintrc`, `tsconfig.json`)
 - `daily` / `weekly` / `monthly`: Run only on that cadence or slower
 
+### JavaScript/TypeScript Tools
+
 | Tool               | Default | Detects                  |
 | ------------------ | ------- | ------------------------ |
 | Trunk              | enabled | Always                   |
@@ -250,7 +255,22 @@ Tools can be enabled with:
 | jscpd              | weekly  | Always (on weekly+)      |
 | dependency-cruiser | weekly  | `.dependency-cruiser.js` |
 | knip               | monthly | `knip.json`              |
-| semgrep            | monthly | Always (on monthly)      |
+| semgrep            | weekly  | Always (security scan)   |
+
+### Python Tools
+
+| Tool   | Default | Detects                              | Purpose           |
+| ------ | ------- | ------------------------------------ | ----------------- |
+| ruff   | daily   | `pyproject.toml`, `requirements.txt` | Fast linting      |
+| mypy   | daily   | Python project files                 | Type checking     |
+| bandit | weekly  | Python project files                 | Security scanning |
+
+### Java Tools
+
+| Tool     | Default | Detects                   | Purpose           |
+| -------- | ------- | ------------------------- | ----------------- |
+| PMD      | weekly  | `pom.xml`, `build.gradle` | Code analysis     |
+| SpotBugs | monthly | Compiled `.class` files   | Bytecode analysis |
 
 ## Severity & Confidence
 

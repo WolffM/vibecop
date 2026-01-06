@@ -318,6 +318,235 @@ export function mapSemgrepConfidence(semgrepConfidence?: string): Confidence {
 }
 
 // ============================================================================
+// Python Tool Mappings
+// ============================================================================
+
+/**
+ * Map Ruff severity codes to our severity scale.
+ * Ruff uses single-letter prefixes: E=error, W=warning, F=pyflakes, etc.
+ */
+export function mapRuffSeverity(code: string): Severity {
+  // E9xx are syntax errors (critical)
+  if (code.match(/^E9\d{2}/)) {
+    return "critical";
+  }
+  // F8xx are undefined names, F4xx are import issues (high)
+  if (code.match(/^F[48]\d{2}/)) {
+    return "high";
+  }
+  // E (errors) and F (pyflakes) are typically high
+  if (code.startsWith("E") || code.startsWith("F")) {
+    return "high";
+  }
+  // S (bandit/security) rules are high to critical
+  if (code.startsWith("S")) {
+    return "high";
+  }
+  // W (warnings) are medium
+  if (code.startsWith("W")) {
+    return "medium";
+  }
+  // C (complexity), N (naming), D (docstrings) are low
+  if (code.startsWith("C") || code.startsWith("N") || code.startsWith("D")) {
+    return "low";
+  }
+  // B (bugbear) rules are medium to high
+  if (code.startsWith("B")) {
+    return "medium";
+  }
+  return "medium";
+}
+
+/**
+ * Map Ruff findings to confidence.
+ */
+export function mapRuffConfidence(code: string): Confidence {
+  // Syntax errors are definite
+  if (code.match(/^E9\d{2}/)) {
+    return "high";
+  }
+  // Undefined names, unused imports are definite
+  if (code.match(/^F[48]\d{2}/)) {
+    return "high";
+  }
+  // Security rules (S) can have false positives
+  if (code.startsWith("S")) {
+    return "medium";
+  }
+  // Most E/F rules are reliable
+  if (code.startsWith("E") || code.startsWith("F")) {
+    return "high";
+  }
+  // Style rules are preference-based
+  if (code.startsWith("N") || code.startsWith("D")) {
+    return "low";
+  }
+  return "medium";
+}
+
+/**
+ * Map Mypy error codes to severity.
+ * Mypy errors are type errors which are generally high severity.
+ */
+export function mapMypySeverity(errorCode: string): Severity {
+  // Type errors are high severity
+  const highSeverityCodes = [
+    "arg-type",
+    "return-value",
+    "assignment",
+    "call-arg",
+    "call-overload",
+    "index",
+    "attr-defined",
+    "name-defined",
+    "union-attr",
+    "override",
+    "operator",
+    "misc",
+  ];
+  if (highSeverityCodes.some((c) => errorCode.includes(c))) {
+    return "high";
+  }
+  // Import errors are medium
+  if (errorCode.includes("import")) {
+    return "medium";
+  }
+  // Note-level issues
+  if (errorCode === "note") {
+    return "low";
+  }
+  return "high"; // Default for type checker
+}
+
+/**
+ * Map Mypy findings to confidence.
+ * Type checker findings are typically high confidence.
+ */
+export function mapMypyConfidence(_errorCode: string): Confidence {
+  // Mypy findings are definitive type errors
+  return "high";
+}
+
+/**
+ * Map Bandit severity levels to our scale.
+ * Bandit uses LOW, MEDIUM, HIGH severity.
+ */
+export function mapBanditSeverity(banditSeverity: string): Severity {
+  const normalized = banditSeverity.toUpperCase();
+  if (normalized === "HIGH") {
+    return "critical"; // Security high = critical
+  }
+  if (normalized === "MEDIUM") {
+    return "high";
+  }
+  return "medium"; // LOW
+}
+
+/**
+ * Map Bandit confidence levels to our scale.
+ * Bandit uses LOW, MEDIUM, HIGH confidence.
+ */
+export function mapBanditConfidence(banditConfidence: string): Confidence {
+  const normalized = banditConfidence.toUpperCase();
+  if (normalized === "HIGH") {
+    return "high";
+  }
+  if (normalized === "MEDIUM") {
+    return "medium";
+  }
+  return "low";
+}
+
+// ============================================================================
+// Java Tool Mappings
+// ============================================================================
+
+/**
+ * Map PMD priority to severity.
+ * PMD uses priority 1-5 (1 = highest, 5 = lowest).
+ */
+export function mapPmdSeverity(priority: number): Severity {
+  if (priority === 1) {
+    return "critical";
+  }
+  if (priority === 2) {
+    return "high";
+  }
+  if (priority === 3) {
+    return "medium";
+  }
+  return "low"; // 4 and 5
+}
+
+/**
+ * Map PMD findings to confidence based on rule category.
+ */
+export function mapPmdConfidence(ruleSet: string): Confidence {
+  const normalized = ruleSet.toLowerCase();
+  // Error-prone rules are high confidence
+  if (normalized.includes("errorprone")) {
+    return "high";
+  }
+  // Security rules are medium (can have false positives)
+  if (normalized.includes("security")) {
+    return "medium";
+  }
+  // Best practices are medium
+  if (normalized.includes("bestpractices")) {
+    return "medium";
+  }
+  // Design/style rules are low
+  if (normalized.includes("design") || normalized.includes("codestyle")) {
+    return "low";
+  }
+  return "medium";
+}
+
+/**
+ * Map SpotBugs rank to severity.
+ * SpotBugs uses rank 1-20 (1 = scariest, 20 = least scary).
+ * Also uses categories: CORRECTNESS, SECURITY, PERFORMANCE, etc.
+ */
+export function mapSpotBugsSeverity(rank: number, category?: string): Severity {
+  // Security issues are always high+
+  if (category?.toUpperCase() === "SECURITY") {
+    if (rank <= 4) return "critical";
+    return "high";
+  }
+  // Correctness bugs
+  if (category?.toUpperCase() === "CORRECTNESS") {
+    if (rank <= 4) return "critical";
+    if (rank <= 9) return "high";
+    return "medium";
+  }
+  // General rank-based mapping
+  if (rank <= 4) {
+    return "critical";
+  }
+  if (rank <= 9) {
+    return "high";
+  }
+  if (rank <= 14) {
+    return "medium";
+  }
+  return "low";
+}
+
+/**
+ * Map SpotBugs confidence to our scale.
+ * SpotBugs uses 1 (high), 2 (medium), 3 (low) for confidence.
+ */
+export function mapSpotBugsConfidence(confidence: number): Confidence {
+  if (confidence === 1) {
+    return "high";
+  }
+  if (confidence === 2) {
+    return "medium";
+  }
+  return "low";
+}
+
+// ============================================================================
 // Layer Classification
 // ============================================================================
 
@@ -325,7 +554,36 @@ export function mapSemgrepConfidence(semgrepConfidence?: string): Confidence {
  * Classify a finding into a layer based on tool and rule.
  */
 export function classifyLayer(tool: ToolName, ruleId: string): Layer {
-  // Security layer
+  // Security tools are always security layer
+  if (tool === "bandit" || tool === "spotbugs") {
+    // SpotBugs can have non-security findings
+    const ruleIdLower = ruleId.toLowerCase();
+    if (
+      tool === "spotbugs" &&
+      !ruleIdLower.includes("security") &&
+      !ruleIdLower.includes("sql") &&
+      !ruleIdLower.includes("xss")
+    ) {
+      return "code";
+    }
+    return "security";
+  }
+
+  // GitHub Security Advisories and CVEs are always security
+  if (
+    ruleId.startsWith("GHSA-") ||
+    ruleId.startsWith("CVE-") ||
+    ruleId.startsWith("CWE-")
+  ) {
+    return "security";
+  }
+
+  // osv-scanner findings (from Trunk) are security
+  if (tool === "trunk" && (ruleId.includes("GHSA") || ruleId.includes("CVE"))) {
+    return "security";
+  }
+
+  // Security layer patterns
   const securityPatterns = [
     "security",
     "xss",
@@ -340,10 +598,20 @@ export function classifyLayer(tool: ToolName, ruleId: string): Layer {
     "password",
     "eval",
     "dangerous",
+    "hardcoded",
+    "random",
+    "prototype",
+    "pollution",
+    "vulnerable",
   ];
 
   const ruleIdLower = ruleId.toLowerCase();
   if (securityPatterns.some((p) => ruleIdLower.includes(p))) {
+    return "security";
+  }
+
+  // Ruff security rules (S prefix)
+  if (tool === "ruff" && ruleId.startsWith("S")) {
     return "security";
   }
 
@@ -360,7 +628,7 @@ export function classifyLayer(tool: ToolName, ruleId: string): Layer {
   }
 
   // System layer (build, config issues)
-  if (tool === "tsc") {
+  if (tool === "tsc" || tool === "mypy") {
     // Type errors are code-level
     return "code";
   }
@@ -428,6 +696,50 @@ export function estimateEffort(
     return "S";
   }
 
+  // Python tools
+  if (tool === "ruff") {
+    // Ruff has autofix for many rules; if we get here, no autofix
+    // Style rules (N, D) are Small, others Medium
+    if (ruleId.startsWith("N") || ruleId.startsWith("D")) {
+      return "S";
+    }
+    return "M";
+  }
+
+  if (tool === "mypy") {
+    // Type errors vary; assume Medium
+    return "M";
+  }
+
+  if (tool === "bandit") {
+    // Security issues vary widely
+    // Hardcoded passwords/secrets are typically Small (remove/externalize)
+    if (
+      ruleId.includes("hardcoded") ||
+      ruleId.includes("B105") ||
+      ruleId.includes("B106")
+    ) {
+      return "S";
+    }
+    // Most security fixes require investigation
+    return "M";
+  }
+
+  // Java tools
+  if (tool === "pmd") {
+    // PMD covers wide range; default to Medium
+    const ruleIdLower = ruleId.toLowerCase();
+    if (ruleIdLower.includes("unused") || ruleIdLower.includes("empty")) {
+      return "S";
+    }
+    return "M";
+  }
+
+  if (tool === "spotbugs") {
+    // SpotBugs findings typically require investigation
+    return "M";
+  }
+
   // Default: Medium
   return "M";
 }
@@ -475,6 +787,26 @@ export function determineAutofixLevel(
 
   // Trunk may provide autofix
   if (tool === "trunk" && hasFixInfo) {
+    return "requires_review";
+  }
+
+  // Ruff has autofix for many rules
+  if (tool === "ruff" && hasFixInfo) {
+    // Safe formatting/style fixes
+    const safeRuffRules = [
+      "I", // isort (import sorting)
+      "W", // pycodestyle warnings (whitespace)
+      "E1", // indentation
+      "E2", // whitespace
+      "E3", // blank lines
+      "E7", // statement (e.g., multiple statements)
+      "Q", // quotes
+      "COM", // commas
+      "UP", // pyupgrade (safe modernizations)
+    ];
+    if (safeRuffRules.some((prefix) => ruleId.startsWith(prefix))) {
+      return "safe";
+    }
     return "requires_review";
   }
 
