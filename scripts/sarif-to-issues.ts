@@ -271,20 +271,27 @@ export async function processFindings(
       const body = generateIssueBody(finding, context);
       const labels = getLabelsForFinding(finding, issuesConfig.label, languagesInRun);
 
-      // Update existing open issue
-      console.log(`Updating issue #${existingIssue.number} for ${finding.ruleId}`);
-
-      await withRateLimit(() =>
-        updateIssue(owner, repo, {
-          number: existingIssue.number,
-          title,
-          body,
-          labels,
-        }),
+      // Skip update if content hasn't changed (avoid unnecessary API calls)
+      const labelsMatch = arraysEqual(
+        (existingIssue.labels || []).sort(),
+        labels.sort(),
       );
+      if (existingIssue.title === title && existingIssue.body === body && labelsMatch) {
+        console.log(`Skipping issue #${existingIssue.number} (no changes)`);
+      } else {
+        console.log(`Updating issue #${existingIssue.number} for ${finding.ruleId}`);
 
-      stats.updated++;
-      // No need to register - issue is already in the maps from initial build
+        await withRateLimit(() =>
+          updateIssue(owner, repo, {
+            number: existingIssue.number,
+            title,
+            body,
+            labels,
+          }),
+        );
+
+        stats.updated++;
+      }
     } else {
       // No existing issue found - create new one (respect max cap)
       if (stats.created >= issuesConfig.max_new_per_run) {
@@ -461,6 +468,17 @@ async function closeSupersededIssues(
       stats.closed++;
     }
   }
+}
+
+/**
+ * Check if two arrays are equal (shallow comparison).
+ */
+function arraysEqual<T>(a: T[], b: T[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
 
 /**
