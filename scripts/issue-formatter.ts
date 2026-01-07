@@ -209,6 +209,52 @@ export function getToolLanguage(tool: string): string | null {
 }
 
 /**
+ * Detect language from file extension.
+ */
+function getLanguageFromPath(path: string): string | null {
+  const ext = path.split(".").pop()?.toLowerCase();
+  const extToLang: Record<string, string> = {
+    ts: "typescript",
+    tsx: "typescript",
+    js: "typescript",
+    jsx: "typescript",
+    py: "python",
+    java: "java",
+  };
+  return extToLang[ext || ""] || null;
+}
+
+/**
+ * Get the dominant language from a finding's locations.
+ * Returns the language that appears most frequently, or null if mixed/unknown.
+ */
+function getDominantLanguageFromLocations(
+  locations: { path: string }[],
+): string | null {
+  const langCounts: Record<string, number> = {};
+
+  for (const loc of locations) {
+    const lang = getLanguageFromPath(loc.path);
+    if (lang) {
+      langCounts[lang] = (langCounts[lang] || 0) + 1;
+    }
+  }
+
+  const entries = Object.entries(langCounts);
+  if (entries.length === 0) return null;
+  if (entries.length === 1) return entries[0][0];
+
+  // Return the most common language if it's dominant (>50%)
+  const total = locations.length;
+  const sorted = entries.sort((a, b) => b[1] - a[1]);
+  if (sorted[0][1] > total / 2) {
+    return sorted[0][0];
+  }
+
+  return null; // Mixed languages
+}
+
+/**
  * Detect which languages have findings in a set of findings.
  * Returns a set of language names (typescript, python, java).
  */
@@ -250,7 +296,11 @@ export function getLabelsForFinding(
 
   // Add language label only when multiple languages have findings
   if (languagesInRun && languagesInRun.size > 1) {
-    const lang = getToolLanguage(finding.tool);
+    // First try tool-specific language, then infer from file extensions
+    let lang = getToolLanguage(finding.tool);
+    if (!lang && finding.locations.length > 0) {
+      lang = getDominantLanguageFromLocations(finding.locations);
+    }
     if (lang) {
       labels.push(`lang:${lang}`);
     }
@@ -456,6 +506,14 @@ function buildAIMetadataMarkers(finding: Finding): string {
 }
 
 /**
+ * Check if the message already contains location information (from merged findings).
+ */
+function messageContainsLocations(message: string): boolean {
+  // Merged findings have messages like "Found X occurrences in Y files:" followed by bullet points
+  return /Found \d+ occurrences? in \d+ files?:/i.test(message);
+}
+
+/**
  * Generate the issue body for a finding.
  */
 export function generateIssueBody(
@@ -467,8 +525,6 @@ export function generateIssueBody(
   const severityEmoji = getSeverityEmoji(finding.severity);
 
   // Build sections
-  const { mainLocation, additionalLocations } =
-    buildLocationSection(finding, repo);
   const evidenceSection = buildEvidenceSection(finding);
   const ruleLink = buildRuleLink(finding);
   const referencesSection = buildReferencesSection(finding);
@@ -483,6 +539,16 @@ export function generateIssueBody(
         ? "⚠️ Autofix requires review"
         : "Manual fix required";
 
+  // Skip the Location section if the message already contains location info (merged findings)
+  let locationSection = "";
+  if (!messageContainsLocations(finding.message)) {
+    const { mainLocation, additionalLocations } = buildLocationSection(
+      finding,
+      repo,
+    );
+    locationSection = `\n## Location\n\n${mainLocation}${additionalLocations}`;
+  }
+
   const body = `## Details
 
 | Property | Value |
@@ -496,10 +562,7 @@ export function generateIssueBody(
 | Autofix | ${autofixText} |
 ${cweRow}
 ${finding.message}
-
-## Location
-
-${mainLocation}${additionalLocations}
+${locationSection}
 ${evidenceSection}
 ${suggestedFixSection}
 ${referencesSection}
