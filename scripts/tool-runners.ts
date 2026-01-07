@@ -206,32 +206,27 @@ export function runTsc(rootPath: string): Finding[] {
     allFindings.push(...parseTscOutput(diagnostics));
 
     // Also check test-fixtures if it has its own tsconfig
-    const testFixturesConfig = join(rootPath, "test-fixtures", "tsconfig.json");
+    const testFixturesDir = join(rootPath, "test-fixtures");
+    const testFixturesConfig = join(testFixturesDir, "tsconfig.json");
     if (existsSync(testFixturesConfig)) {
       console.log("  Also checking test-fixtures...");
+      // Run tsc from the test-fixtures directory to ensure proper resolution
+      // Use the TypeScript from the main project's node_modules
+      const tscPath = join(rootPath, "node_modules", ".bin", "tsc");
       const fixturesResult = spawnSync(
-        "npx",
-        [
-          "tsc",
-          "--project",
-          testFixturesConfig,
-          "--noEmit",
-          "--pretty",
-          "false",
-        ],
+        existsSync(tscPath) ? tscPath : "npx",
+        existsSync(tscPath)
+          ? ["--noEmit", "--pretty", "false"]
+          : ["tsc", "--noEmit", "--pretty", "false"],
         {
-          cwd: rootPath,
+          cwd: testFixturesDir,
           encoding: "utf-8",
           shell: true,
         },
       );
       const fixturesOutput = fixturesResult.stdout + fixturesResult.stderr;
-      // Debug: Show first 500 chars of output if any
-      if (fixturesOutput.trim()) {
-        console.log(`  tsc output (first 500 chars): ${fixturesOutput.substring(0, 500)}`);
-      }
       const fixturesDiagnostics = parseTscTextOutput(fixturesOutput);
-      console.log(`  Parsed ${fixturesDiagnostics.length} diagnostics from test-fixtures`);
+      console.log(`  Found ${fixturesDiagnostics.length} TypeScript errors in test-fixtures`);
       allFindings.push(...parseTscOutput(fixturesDiagnostics));
     }
   } catch (error) {
