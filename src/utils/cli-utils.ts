@@ -4,8 +4,9 @@
  * Common functionality extracted from CLI entry points to reduce duplication.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { Finding, RunContext } from "../core/types.js";
+import { buildRepoInfo, getRunNumber, loadJsonFile } from "./shared.js";
 
 /**
  * Load findings from a JSON file.
@@ -16,7 +17,7 @@ function loadFindings(findingsPath: string): Finding[] {
     console.error(`Findings file not found: ${findingsPath}`);
     process.exit(1);
   }
-  return JSON.parse(readFileSync(findingsPath, "utf-8"));
+  return loadJsonFile<Finding[]>(findingsPath);
 }
 
 /**
@@ -25,12 +26,7 @@ function loadFindings(findingsPath: string): Finding[] {
  */
 function buildDefaultContext(): RunContext {
   return {
-    repo: {
-      owner: process.env.GITHUB_REPOSITORY_OWNER || "unknown",
-      name: process.env.GITHUB_REPOSITORY?.split("/")[1] || "unknown",
-      defaultBranch: "main",
-      commit: process.env.GITHUB_SHA || "unknown",
-    },
+    repo: buildRepoInfo(),
     profile: {
       languages: ["typescript"],
       packageManager: "pnpm",
@@ -52,7 +48,7 @@ function buildDefaultContext(): RunContext {
     },
     config: { version: 1 },
     cadence: "weekly",
-    runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10),
+    runNumber: getRunNumber(),
     workspacePath: process.cwd(),
     outputDir: ".",
   };
@@ -63,7 +59,7 @@ function buildDefaultContext(): RunContext {
  */
 function loadOrBuildContext(contextPath: string): RunContext {
   if (existsSync(contextPath)) {
-    return JSON.parse(readFileSync(contextPath, "utf-8"));
+    return loadJsonFile<RunContext>(contextPath);
   }
   return buildDefaultContext();
 }

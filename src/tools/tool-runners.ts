@@ -11,6 +11,7 @@ import { join } from "node:path";
 import type { Finding } from "../core/types.js";
 import { extractJsonFromMixedOutput } from "./tool-utils.js";
 import { parseTrunkOutput } from "../parsers.js";
+import { MAX_OUTPUT_BUFFER, TOOL_INIT_TIMEOUT_MS } from "../utils/shared.js";
 
 // Re-export all language-specific runners
 export {
@@ -22,16 +23,6 @@ export {
 export { runRuff, runMypy, runBandit } from "./runners/python.js";
 export { runPmd, runSpotBugs } from "./runners/java.js";
 export { runSemgrep } from "./runners/security.js";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-/** Timeout for tool initialization (e.g., trunk init) */
-const TOOL_INIT_TIMEOUT_MS = 120_000; // 2 minutes
-
-/** Max buffer size for tool output to prevent memory issues */
-const MAX_OUTPUT_BUFFER = 50 * 1024 * 1024; // 50MB
 
 // ============================================================================
 // Trunk Runner (kept here due to complexity and special handling)

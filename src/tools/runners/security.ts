@@ -8,9 +8,7 @@ import { spawnSync } from "node:child_process";
 import type { Finding } from "../../core/types.js";
 import { EXCLUDE_DIRS_COMMON, isToolAvailable } from "../tool-utils.js";
 import { parseSemgrepOutput } from "../../parsers.js";
-
-/** Max buffer size for tool output */
-const MAX_OUTPUT_BUFFER = 50 * 1024 * 1024; // 50MB
+import { MAX_OUTPUT_BUFFER } from "../../utils/shared.js";
 
 /**
  * Run Semgrep for security vulnerability detection.

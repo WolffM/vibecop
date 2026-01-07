@@ -7,9 +7,8 @@
  * Reference: vibeCheck_spec.md section 8
  */
 
-import { readFileSync, existsSync } from "node:fs";
 import { deduplicateFindings, extractSublinter } from "../utils/fingerprints.js";
-import { arraysEqual } from "../utils/shared.js";
+import { addToMapArray, arraysEqual } from "../utils/shared.js";
 import {
   buildFingerprintMap,
   closeIssue,
@@ -154,16 +153,6 @@ export async function processFindings(
   const ruleOnlyMap = new Map<string, ExistingIssue[]>(); // ruleId only -> issues (for cross-tool matching)
   const normalizedTitleMap = new Map<string, ExistingIssue[]>(); // normalized title -> issues
 
-  // Helper to add issue to a map (stores array to handle duplicates)
-  function addToMap(map: Map<string, ExistingIssue[]>, key: string, issue: ExistingIssue) {
-    const existing = map.get(key);
-    if (existing) {
-      existing.push(issue);
-    } else {
-      map.set(key, [issue]);
-    }
-  }
-
   // Helper to get best issue from map (prefers open, then highest number)
   function getBestIssue(map: Map<string, ExistingIssue[]>, key: string): ExistingIssue | undefined {
     const issues = map.get(key);
@@ -182,7 +171,7 @@ export async function processFindings(
   for (const issue of existingIssues) {
     // Add to normalized title map
     const normalizedTitle = normalizeIssueTitle(issue.title);
-    addToMap(normalizedTitleMap, normalizedTitle, issue);
+    addToMapArray(normalizedTitleMap, normalizedTitle, issue);
 
     // Extract tool and rule from issue title
     const titleMatch = issue.title.match(
@@ -194,9 +183,9 @@ export async function processFindings(
 
       if (ruleId) {
         const key = `${toolOrSublinter}|${ruleId}`;
-        addToMap(toolRuleMap, key, issue);
+        addToMapArray(toolRuleMap, key, issue);
         // Also add to rule-only map for cross-tool matching (trunk vs standalone)
-        addToMap(ruleOnlyMap, ruleId, issue);
+        addToMapArray(ruleOnlyMap, ruleId, issue);
       }
     }
   }
@@ -240,14 +229,14 @@ export async function processFindings(
 
     // Add to tool+rule map
     const toolRuleKey = `${finding.tool.toLowerCase()}|${finding.ruleId.toLowerCase()}`;
-    addToMap(toolRuleMap, toolRuleKey, issue);
+    addToMapArray(toolRuleMap, toolRuleKey, issue);
 
     // Add to rule-only map
-    addToMap(ruleOnlyMap, finding.ruleId.toLowerCase(), issue);
+    addToMapArray(ruleOnlyMap, finding.ruleId.toLowerCase(), issue);
 
     // Add to normalized title map
     const normalizedTitle = normalizeIssueTitle(issue.title);
-    addToMap(normalizedTitleMap, normalizedTitle, issue);
+    addToMapArray(normalizedTitleMap, normalizedTitle, issue);
   }
 
   // Process each finding
@@ -576,22 +565,10 @@ async function main() {
   const findingsPath = args[0] || "findings.json";
   const contextPath = args[1] || "context.json";
 
-  // Load findings
-  if (!existsSync(findingsPath)) {
-    console.error(`Findings file not found: ${findingsPath}`);
-    process.exit(1);
-  }
-
-  const findings: Finding[] = JSON.parse(readFileSync(findingsPath, "utf-8"));
+  // Load findings and context using shared utility
+  const { loadFindingsAndContext } = await import("../utils/cli-utils.js");
+  const { findings, context } = loadFindingsAndContext(findingsPath, contextPath);
   console.log(`Loaded ${findings.length} findings`);
-
-  // Load context
-  if (!existsSync(contextPath)) {
-    console.error(`Context file not found: ${contextPath}`);
-    process.exit(1);
-  }
-
-  const context: RunContext = JSON.parse(readFileSync(contextPath, "utf-8"));
 
   // Process findings
   const stats = await processFindings(findings, context);

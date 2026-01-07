@@ -22,6 +22,7 @@ import {
   mergeIssues,
   type MergeStrategy,
 } from "../utils/fingerprints.js";
+import { buildRepoInfo, getRunNumber } from "../utils/shared.js";
 import {
   loadVibeCopConfig,
   isValidSeverityThreshold,
@@ -155,16 +156,11 @@ export async function analyze(
 
   // Build context
   const context: RunContext = {
-    repo: {
-      owner: process.env.GITHUB_REPOSITORY_OWNER || "unknown",
-      name: process.env.GITHUB_REPOSITORY?.split("/")[1] || "unknown",
-      defaultBranch: "main",
-      commit: process.env.GITHUB_SHA || "unknown",
-    },
+    repo: buildRepoInfo(),
     profile,
     config: mergedConfig,
     cadence,
-    runNumber: parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10),
+    runNumber: getRunNumber(),
     workspacePath: rootPath,
     outputDir,
   };

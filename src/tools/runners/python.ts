@@ -17,9 +17,7 @@ import {
   parseBanditOutput,
   type BanditOutput,
 } from "../../parsers.js";
-
-/** Max buffer size for tool output */
-const MAX_OUTPUT_BUFFER = 50 * 1024 * 1024; // 50MB
+import { MAX_OUTPUT_BUFFER } from "../../utils/shared.js";
 
 /**
  * Run Ruff linter for Python code.

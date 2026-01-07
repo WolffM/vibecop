@@ -4,7 +4,65 @@
  * Common helper functions used across modules.
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import type { Severity } from "../core/types.js";
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Max buffer size for tool output to prevent memory issues */
+export const MAX_OUTPUT_BUFFER = 50 * 1024 * 1024; // 50MB
+
+/** Timeout for tool initialization (e.g., trunk init) */
+export const TOOL_INIT_TIMEOUT_MS = 120_000; // 2 minutes
+
+// ============================================================================
+// Environment / Repository Helpers
+// ============================================================================
+
+/**
+ * Build repository info from GitHub environment variables.
+ * Used to construct RunContext.repo consistently.
+ */
+export function buildRepoInfo(): {
+  owner: string;
+  name: string;
+  defaultBranch: string;
+  commit: string;
+} {
+  return {
+    owner: process.env.GITHUB_REPOSITORY_OWNER || "unknown",
+    name: process.env.GITHUB_REPOSITORY?.split("/")[1] || "unknown",
+    defaultBranch: "main",
+    commit: process.env.GITHUB_SHA || "unknown",
+  };
+}
+
+/**
+ * Get the current run number from GitHub Actions environment.
+ */
+export function getRunNumber(): number {
+  return parseInt(process.env.GITHUB_RUN_NUMBER || "1", 10);
+}
+
+// ============================================================================
+// File Helpers
+// ============================================================================
+
+/**
+ * Load and parse a JSON file with proper error handling.
+ * @param path - Path to the JSON file
+ * @param fallback - Optional fallback value if file doesn't exist
+ * @throws Error if file doesn't exist and no fallback provided
+ */
+export function loadJsonFile<T>(path: string, fallback?: T): T {
+  if (!existsSync(path)) {
+    if (fallback !== undefined) return fallback;
+    throw new Error(`File not found: ${path}`);
+  }
+  return JSON.parse(readFileSync(path, "utf-8"));
+}
 
 // ============================================================================
 // Severity Helpers
@@ -69,6 +127,19 @@ export function groupBy<T, K extends string | number>(
     }
   }
   return groups;
+}
+
+/**
+ * Add an item to a Map of arrays (multimap pattern).
+ * Creates the array if the key doesn't exist.
+ */
+export function addToMapArray<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const existing = map.get(key);
+  if (existing) {
+    existing.push(value);
+  } else {
+    map.set(key, [value]);
+  }
 }
 
 /**
