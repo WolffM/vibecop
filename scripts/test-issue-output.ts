@@ -7,7 +7,7 @@
  * Usage: npx tsx scripts/test-issue-output.ts
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { analyze } from "./analyze.js";
 import {
@@ -35,10 +35,13 @@ interface IssuePreview {
 async function main() {
   const outputDir = join(process.cwd(), ".vibecheck-test-output");
   
-  // Ensure output directory exists
-  if (!existsSync(outputDir)) {
-    mkdirSync(outputDir, { recursive: true });
+  // Clean up previous test output
+  if (existsSync(outputDir)) {
+    rmSync(outputDir, { recursive: true, force: true });
   }
+  
+  // Create fresh output directory
+  mkdirSync(outputDir, { recursive: true });
 
   console.log("=== Local Issue Output Tester ===\n");
 
