@@ -103,7 +103,7 @@ export async function analyze(
     mkdirSync(outputDir, { recursive: true });
   }
 
-  console.log("=== vibeCheck Analysis ===");
+  console.log("=== vibeCheck ===");
   console.log(`Root: ${rootPath}`);
   console.log(`Cadence: ${cadence}`);
   console.log("");

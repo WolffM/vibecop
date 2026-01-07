@@ -6,7 +6,7 @@ vibeCheck is a **GitHub Action** that runs static analysis on any repository and
 
 | Example Issues |
 |:---:|
-| [![All](https://img.shields.io/badge/All-vibeCheck-7c3aed)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck) [![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3Alang%3Atypescript) [![Python](https://img.shields.io/badge/Python-3776ab?logo=python&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3Alang%3Apython) [![Java](https://img.shields.io/badge/Java-b07219?logo=openjdk&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3Alang%3Ajava) |
+| [![All](https://img.shields.io/badge/All-vibeCheck-7c3aed)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+is%3Aopen+label%3AvibeCheck) [![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+is%3Aopen+label%3AvibeCheck+label%3Alang%3Atypescript) [![Python](https://img.shields.io/badge/Python-3776ab?logo=python&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+is%3Aopen+label%3AvibeCheck+label%3Alang%3Apython) [![Java](https://img.shields.io/badge/Java-b07219?logo=openjdk&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+is%3Aopen+label%3AvibeCheck+label%3Alang%3Ajava) |
 
 ## Quick Start
 
@@ -19,12 +19,10 @@ vibeCheck is a **GitHub Action** that runs static analysis on any repository and
 Create `.github/workflows/vibecheck.yml` in your repo:
 
 ```yaml
-name: vibeCheck Analysis
+name: vibeCheck
 
 on:
-  schedule:
-    - cron: "0 3 * * 1" # Weekly on Mondays at 3am UTC
-  workflow_dispatch: {} # Manual trigger button
+  workflow_dispatch: # Manual trigger via Actions tab
 
 permissions:
   contents: read
@@ -42,6 +40,8 @@ jobs:
       - uses: WolffM/vibecheck@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          severity_threshold: "low"
+          confidence_threshold: "medium"
 ```
 
 ---
@@ -49,7 +49,7 @@ jobs:
 **That's it!** To run vibeCheck:
 
 1. Go to your repo's **Actions** tab
-2. Click **vibeCheck Analysis** in the sidebar
+2. Click **vibeCheck** in the sidebar
 3. Click **Run workflow**
 
 No secrets to configure—uses your repo's built-in `GITHUB_TOKEN`.

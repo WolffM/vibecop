@@ -48,7 +48,7 @@ describe('generateWorkflow', () => {
       const yaml = generateWorkflow(options);
 
       // Check basic structure
-      expect(yaml).toContain('name: vibeCheck Analysis');
+      expect(yaml).toContain('name: vibeCheck');
       expect(yaml).toContain('uses: WolffM/vibecheck@main');
       expect(yaml).toContain('workflow_dispatch:');
       // Manual mode should NOT have schedule

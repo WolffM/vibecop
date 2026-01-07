@@ -1,6 +1,6 @@
 # Test Fixtures
 
-This directory contains intentionally "dirty" code to demonstrate all vibeCheck analysis tools.
+This directory contains intentionally "dirty" code to demonstrate all vibeCheck tools.
 These files trigger at least one issue per tool, which remain open as demo issues in this repo.
 
 All findings from test-fixtures are labeled with `demo` and merged separately from real repository issues.

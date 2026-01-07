@@ -29,7 +29,7 @@ for (let i = 0; i < args.length; i++) {
     options.skipIssues = true;
   } else if (arg === '--help' || arg === '-h') {
     console.log(`
-vibeCheck Analysis Runner
+vibeCheck Runner
 
 Usage: npx tsx scripts/run-analyze.ts [options]
 
@@ -45,7 +45,7 @@ Options:
   }
 }
 
-console.log('Starting vibeCheck analysis...');
+console.log('Starting vibeCheck...');
 console.log('Options:', JSON.stringify(options, null, 2));
 console.log('');
 
