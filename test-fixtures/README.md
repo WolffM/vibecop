@@ -49,14 +49,14 @@ All findings from test-fixtures are labeled with `demo` and merged separately fr
 ## Running Analysis
 
 ```bash
-# Quick verbose analysis (shows all findings)
-npx tsx scripts/verbose-analyze.ts --root="."
+# Run local preview (shows all findings as issue previews)
+npx tsx tests/local-preview.ts
+
+# Run analysis directly
+npx tsx src/core/analyze.ts --root="."
 
 # With severity filter
-npx tsx scripts/verbose-analyze.ts --severity-threshold=high
-
-# With different merge strategy
-npx tsx scripts/verbose-analyze.ts --merge-strategy=same-file
+npx tsx src/core/analyze.ts --severity-threshold=high
 ```
 
 ## Demo Issues

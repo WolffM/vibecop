@@ -7,7 +7,7 @@
 ### Running the Local Test Pipeline
 
 ```bash
-npx tsx scripts/test-issue-output.ts
+npx tsx tests/local-preview.ts
 ```
 
 This script:
@@ -29,10 +29,10 @@ After running the local pipeline, check:
 
 ### Key Files
 
-- `scripts/test-issue-output.ts` - Local test pipeline
-- `scripts/issue-formatter.ts` - Issue body generation (contains `messageContainsLocations()`)
-- `scripts/fingerprints.ts` - Finding merging logic (contains `mergeFindings()`)
-- `scripts/sarif-to-issues.ts` - GitHub issue creation/update logic
+- `tests/local-preview.ts` - Local test pipeline
+- `src/output/issue-formatter.ts` - Issue body generation (contains `messageContainsLocations()`)
+- `src/utils/fingerprints.ts` - Finding merging logic (contains `mergeFindings()`)
+- `src/github/sarif-to-issues.ts` - GitHub issue creation/update logic
 
 ### Common Issues to Watch For
 

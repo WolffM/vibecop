@@ -203,7 +203,7 @@ runs:
         OUTPUT_DIR="${{ github.workspace }}/.vibecheck-output"
 
         # Run the analysis
-        npx tsx ${{ github.action_path }}/scripts/analyze.ts \
+        npx tsx ${{ github.action_path }}/src/core/analyze.ts \
           --root "${{ github.workspace }}" \
           --cadence "${{ inputs.cadence }}" \
           --config "${{ inputs.config_path }}" \
