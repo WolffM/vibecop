@@ -9,7 +9,6 @@ export interface WorkflowOptions {
   cadence: 'daily' | 'weekly' | 'monthly';
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
   confidence: 'low' | 'medium' | 'high';
-  maxIssues: number;
   mergeStrategy: 'none' | 'same-file' | 'same-rule' | 'same-linter' | 'same-tool';
   disabledTools: string[];
 }
@@ -18,7 +17,6 @@ export const DEFAULTS: WorkflowOptions = {
   cadence: 'weekly',
   severity: 'low',
   confidence: 'medium',
-  maxIssues: 25,
   mergeStrategy: 'same-linter',
   disabledTools: [],
 };
