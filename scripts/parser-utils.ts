@@ -50,6 +50,14 @@ export function normalizePath(path: string): string {
     normalized = ciPathMatch[1];
   }
 
+  // Handle relative paths with ../ that reference the target repo
+  // Pattern: ../../../../reponame/reponame/path -> path
+  // This happens when tsc runs from vibeCheck action dir but checks target repo
+  const relativeRepoMatch = normalized.match(/^(?:\.\.\/)+[^/]+\/[^/]+\/(.+)$/);
+  if (relativeRepoMatch) {
+    normalized = relativeRepoMatch[1];
+  }
+
   // Remove leading ./
   if (normalized.startsWith("./")) {
     normalized = normalized.substring(2);
