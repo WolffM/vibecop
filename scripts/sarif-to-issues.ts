@@ -97,10 +97,16 @@ export async function processFindings(
   }
 
   // Fetch issues with each label separately (GitHub API requires exact label match)
+  // Include both open AND recently closed issues to prevent duplicate creation
+  // when an issue was closed but the same finding is detected again
   const allExistingIssues: ExistingIssue[] = [];
   for (const label of labelsToSearch) {
-    const issues = await searchIssuesByLabel(owner, repo, [label]);
-    allExistingIssues.push(...issues);
+    // Fetch open issues
+    const openIssues = await searchIssuesByLabel(owner, repo, [label], "open");
+    allExistingIssues.push(...openIssues);
+    // Also fetch closed issues to check for duplicates and potential reopening
+    const closedIssues = await searchIssuesByLabel(owner, repo, [label], "closed");
+    allExistingIssues.push(...closedIssues);
   }
 
   // Deduplicate by issue number (in case an issue has both labels)
@@ -219,25 +225,43 @@ export async function processFindings(
 
     if (existingIssue) {
       // Update existing issue (including title)
+      const title = generateIssueTitle(finding);
+      const body = generateIssueBody(finding, context);
+      const labels = getLabelsForFinding(finding, issuesConfig.label, languagesInRun);
+
       if (existingIssue.state === "open") {
         console.log(
           `Updating issue #${existingIssue.number} for ${finding.ruleId}`,
         );
-        const title = generateIssueTitle(finding);
-        const body = generateIssueBody(finding, context);
 
         await withRateLimit(() =>
           updateIssue(owner, repo, {
             number: existingIssue!.number,
-            title, // Update title too
+            title,
             body,
-            labels: getLabelsForFinding(finding, issuesConfig.label, languagesInRun),
+            labels,
+          }),
+        );
+
+        stats.updated++;
+      } else {
+        // Issue was closed but finding reappeared - reopen it
+        console.log(
+          `Reopening issue #${existingIssue.number} for ${finding.ruleId} (finding redetected)`,
+        );
+
+        await withRateLimit(() =>
+          updateIssue(owner, repo, {
+            number: existingIssue!.number,
+            title,
+            body,
+            labels,
+            state: "open",
           }),
         );
 
         stats.updated++;
       }
-      // If closed, don't reopen (would need explicit policy)
     } else {
       // Create new issue (respect max cap)
       if (stats.created >= issuesConfig.max_new_per_run) {
