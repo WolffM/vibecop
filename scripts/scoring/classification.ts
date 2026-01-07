@@ -56,6 +56,11 @@ export function classifyLayer(tool: ToolName, ruleId: string): Layer {
     return "security";
   }
 
+  // Checkov rules (CKV_*) are security - GitHub Actions, Terraform, etc.
+  if (ruleId.startsWith("CKV_")) {
+    return "security";
+  }
+
   // osv-scanner findings (from Trunk) are security
   if (tool === "trunk" && (ruleId.includes("GHSA") || ruleId.includes("CVE"))) {
     return "security";

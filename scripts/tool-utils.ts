@@ -165,6 +165,16 @@ export const COMMON_EXCLUDE_DIRS = [
   "__pycache__",
 ];
 
+/** Pre-built exclude string for general tools (comma-separated) */
+export const EXCLUDE_DIRS_COMMON = COMMON_EXCLUDE_DIRS.slice(0, 3).join(","); // .trunk,node_modules,.git
+
+/** Pre-built exclude string for Python tools (includes venv) */
+export const EXCLUDE_DIRS_PYTHON = [
+  ...COMMON_EXCLUDE_DIRS.slice(0, 3),
+  "venv",
+  ".venv",
+].join(",");
+
 /**
  * Check if a path should be excluded from analysis.
  * Returns true if the path is inside any of the common exclude directories.

@@ -15,7 +15,8 @@ import type { Finding } from "./types.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import {
-  COMMON_EXCLUDE_DIRS,
+  EXCLUDE_DIRS_COMMON,
+  EXCLUDE_DIRS_PYTHON,
   extractJsonFromMixedOutput,
   findConfigFile,
   findSourceDirs,
@@ -457,14 +458,13 @@ export function runSemgrep(rootPath: string, configPath?: string): Finding[] {
 
     // Use security-audit ruleset by default (works better than 'auto' on Windows)
     const config = configPath || "p/security-audit";
-    const excludeDirs = COMMON_EXCLUDE_DIRS.slice(0, 3).join(","); // .trunk,node_modules,.git
     const args = [
       "scan",
       "--json",
       "--config",
       config,
       "--exclude",
-      excludeDirs,
+      EXCLUDE_DIRS_COMMON,
       ".",
     ];
 
@@ -522,8 +522,7 @@ export function runRuff(rootPath: string, configPath?: string): Finding[] {
       return [];
     }
 
-    const excludeDirs = COMMON_EXCLUDE_DIRS.slice(0, 3).join(","); // .trunk,node_modules,.git
-    const args = ["check", "--output-format", "json", "--exclude", excludeDirs];
+    const args = ["check", "--output-format", "json", "--exclude", EXCLUDE_DIRS_COMMON];
     if (configPath) {
       args.push("--config", configPath);
     }
@@ -567,13 +566,7 @@ export function runMypy(rootPath: string, configPath?: string): Finding[] {
     }
 
     // Use --output=json for native JSON output (Python 3.10+)
-    // Include Python-specific excludes
-    const excludeDirs = [
-      ...COMMON_EXCLUDE_DIRS.slice(0, 3),
-      "venv",
-      ".venv",
-    ].join(",");
-    const args = ["--output", "json", "--exclude", excludeDirs];
+    const args = ["--output", "json", "--exclude", EXCLUDE_DIRS_PYTHON];
     if (configPath) {
       args.push("--config-file", configPath);
     }
@@ -632,13 +625,7 @@ export function runBandit(rootPath: string, configPath?: string): Finding[] {
       return [];
     }
 
-    // Include Python-specific excludes
-    const excludeDirs = [
-      ...COMMON_EXCLUDE_DIRS.slice(0, 3),
-      "venv",
-      ".venv",
-    ].join(",");
-    const args = ["-f", "json", "-r", ".", "--exclude", excludeDirs];
+    const args = ["-f", "json", "-r", ".", "--exclude", EXCLUDE_DIRS_PYTHON];
     if (configPath) {
       args.push("-c", configPath);
     }

@@ -419,13 +419,22 @@ function mergeFindings(
           : (f.evidence as { snippet?: string }).snippet;
       if (snippet && !seenEvidence.has(snippet)) {
         seenEvidence.add(snippet);
-        // Add file context to the snippet if we have location info
-        const loc = f.locations[0];
-        if (loc) {
-          const fileHeader = `📄 ${loc.path}:${loc.startLine}`;
-          evidenceSnippets.push(`${fileHeader}\n${snippet}`);
+        
+        // Special handling for jscpd - show both locations for the duplicate pair
+        if (base.tool === "jscpd" && f.locations.length >= 2) {
+          const loc1 = f.locations[0];
+          const loc2 = f.locations[1];
+          const pairHeader = `**Duplicate pair:** \`${loc1.path}:${loc1.startLine}\` ↔ \`${loc2.path}:${loc2.startLine}\``;
+          evidenceSnippets.push(`${pairHeader}\n\`\`\`\n${snippet}\n\`\`\``);
         } else {
-          evidenceSnippets.push(snippet);
+          // Add file context to the snippet if we have location info
+          const loc = f.locations[0];
+          if (loc) {
+            const fileHeader = `📄 ${loc.path}:${loc.startLine}`;
+            evidenceSnippets.push(`${fileHeader}\n${snippet}`);
+          } else {
+            evidenceSnippets.push(snippet);
+          }
         }
       }
     }
@@ -472,14 +481,38 @@ function mergeFindings(
       const match = f.title.match(/(\d+)\s*lines/);
       return sum + (match ? parseInt(match[1], 10) : 0);
     }, 0);
-    baseMessage = `Found ${totalLines} total duplicate lines across ${uniqueFiles.length} files. Consider extracting shared logic into reusable functions or modules.`;
+    
+    // Build a clearer description of duplicate pairs
+    const pairDescriptions = findings.map((f) => {
+      const locs = f.locations;
+      if (locs.length >= 2) {
+        const match = f.title.match(/(\d+)\s*lines/);
+        const lines = match ? match[1] : "?";
+        return `- \`${locs[0].path}\` ↔ \`${locs[1].path}\` (${lines} lines)`;
+      }
+      return null;
+    }).filter(Boolean);
+    
+    baseMessage = `Found ${totalLines} total duplicate lines across ${uniqueFiles.length} files. Consider extracting shared logic into reusable functions or modules.\n\n**Duplicate pairs:**\n${pairDescriptions.join("\n")}`;
   } else {
     baseMessage = base.message;
   }
 
+  // Add rule summary when multiple rules are merged (same-linter strategy)
+  let ruleSummary = "";
+  if (strategy === "same-linter" && uniqueRules.length > 1) {
+    // Get short names for each rule for cleaner display
+    const shortRuleNames = uniqueRules.map((r) => {
+      // Extract last meaningful part of rule ID
+      const parts = r.split(/[./]/);
+      return parts[parts.length - 1] || r;
+    });
+    ruleSummary = `\n\n**Grouped rules (${uniqueRules.length}):** ${shortRuleNames.join(", ")}`;
+  }
+
   // Format locations grouped by file for cleaner display
   const formattedLocations = formatLocationsGroupedByFile(allLocations);
-  const message = `${baseMessage}\n\n**Found ${locationSummary}:**\n${formattedLocations}`;
+  const message = `${baseMessage}${ruleSummary}\n\n**Found ${locationSummary}:**\n${formattedLocations}`;
 
   // Build title based on strategy
   let title: string;
