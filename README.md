@@ -6,7 +6,7 @@ vibeCheck is a **GitHub Action** that runs static analysis on any repository and
 
 | Example Issues |
 |:---:|
-| [![All](https://img.shields.io/badge/All-vibeCheck-7c3aed)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck) [![JS/TS](https://img.shields.io/badge/JS%2FTS-f7df1e?logo=javascript&logoColor=black)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3A%22lang%3A+js%2Fts%22) [![Python](https://img.shields.io/badge/Python-3776ab?logo=python&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3A%22lang%3A+python%22) [![Java](https://img.shields.io/badge/Java-e76f00?logo=openjdk&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3A%22lang%3A+java%22) |
+| [![All](https://img.shields.io/badge/All-vibeCheck-7c3aed)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck) [![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3Alang%3Atypescript) [![Python](https://img.shields.io/badge/Python-3776ab?logo=python&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3Alang%3Apython) [![Java](https://img.shields.io/badge/Java-b07219?logo=openjdk&logoColor=white)](https://github.com/WolffM/vibecheck/issues?q=is%3Aissue+label%3AvibeCheck+label%3Alang%3Ajava) |
 
 ## Quick Start
 
@@ -46,17 +46,13 @@ jobs:
 
 ---
 
-**That's it!** The workflow will:
-
-- Run automatically every Monday at 3am UTC
-- Can be triggered manually from the Actions tab
-- Uses your repo's built-in `GITHUB_TOKEN` (no secrets to configure)
-
-### Trigger it manually (optional)
+**That's it!** To run vibeCheck:
 
 1. Go to your repo's **Actions** tab
 2. Click **vibeCheck Analysis** in the sidebar
 3. Click **Run workflow**
+
+No secrets to configure—uses your repo's built-in `GITHUB_TOKEN`.
 
 ---
 
