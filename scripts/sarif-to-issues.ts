@@ -88,11 +88,29 @@ export async function processFindings(
   console.log("Ensuring labels exist...");
   await ensureLabels(owner, repo, DEFAULT_LABELS);
 
-  // Fetch existing issues
+  // Fetch existing issues (include legacy vibeCop label for backwards compatibility)
   console.log("Fetching existing vibeCheck issues...");
-  const existingIssues = await searchIssuesByLabel(owner, repo, [
-    issuesConfig.label,
-  ]);
+  const labelsToSearch = [issuesConfig.label];
+  // Add legacy label if current label is vibeCheck (to find old vibeCop issues)
+  if (issuesConfig.label === "vibeCheck") {
+    labelsToSearch.push("vibeCop");
+  }
+
+  // Fetch issues with each label separately (GitHub API requires exact label match)
+  const allExistingIssues: ExistingIssue[] = [];
+  for (const label of labelsToSearch) {
+    const issues = await searchIssuesByLabel(owner, repo, [label]);
+    allExistingIssues.push(...issues);
+  }
+
+  // Deduplicate by issue number (in case an issue has both labels)
+  const seenNumbers = new Set<number>();
+  const existingIssues = allExistingIssues.filter((issue) => {
+    if (seenNumbers.has(issue.number)) return false;
+    seenNumbers.add(issue.number);
+    return true;
+  });
+
   const fingerprintMap = buildFingerprintMap(existingIssues);
   console.log(`Found ${existingIssues.length} existing issues`);
 
