@@ -243,7 +243,6 @@ describe('DEFAULTS', () => {
     expect(DEFAULTS.cadence).toBe('weekly');
     expect(DEFAULTS.severity).toBe('low');
     expect(DEFAULTS.confidence).toBe('medium');
-    expect(DEFAULTS.maxIssues).toBe(25);
     expect(DEFAULTS.mergeStrategy).toBe('same-linter');
   });
 });

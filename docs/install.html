@@ -98,8 +98,18 @@
       color: #58a6ff;
     }
     .logo {
-      font-size: 48px;
+      font-size: 32px;
+      font-weight: 700;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+      border-radius: 12px;
       margin-bottom: 16px;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
     }
     .error {
       color: #f85149;
@@ -114,7 +124,7 @@
 
     /* Advanced Options Styles */
     details {
-      margin-top: 24px;
+      margin-top: 8px;
       border: 1px solid #30363d;
       border-radius: 8px;
       background: #161b22;
@@ -216,20 +226,23 @@
 
     /* Tool Selection */
     .tool-categories {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: 12px;
+      justify-content: center;
+    }
+    .tool-category {
+      flex: 0 1 calc(50% - 6px);
+      min-width: 220px;
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #21262d;
     }
     .tool-grid {
       display: flex;
       flex-direction: column;
       gap: 4px;
-    }
-    .tool-category {
-      background: #0d1117;
-      border-radius: 8px;
-      padding: 12px;
-      border: 1px solid #21262d;
     }
     .tool-category-header {
       display: flex;
@@ -361,7 +374,11 @@
       font-size: 12px;
       font-weight: 400;
       color: #c9d1d9;
-      white-space: nowrap;
+      white-space: normal;
+      width: max-content;
+      max-width: 250px;
+      text-align: center;
+      line-height: 1.4;
       z-index: 100;
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
@@ -380,7 +397,7 @@
   </style>
 </head>
 <body>
-  <div class="logo">🛡️</div>
+  <div class="logo">✓</div>
   <h1>Install vibeCheck</h1>
   <p class="subtitle">Add automated code analysis to your repository in one click</p>
 
@@ -435,10 +452,6 @@
         <div class="option-group">
           <h4>Issue Management</h4>
           <div class="option-row">
-            <div class="option-field">
-              <label for="maxIssues">Max Issues <span class="info-icon">i<span class="tooltip">Maximum GitHub issues created per run</span></span></label>
-              <input type="number" id="maxIssues" value="25" min="1" max="100">
-            </div>
             <div class="option-field">
               <label for="mergeStrategy">Merge Strategy <span class="info-icon">i<span class="tooltip">Group similar findings into single issues</span></span></label>
               <select id="mergeStrategy">
@@ -575,7 +588,7 @@
       </div>
     </details>
 
-    <button type="submit" id="submitBtn">Add vibeCheck workflow</button>
+    <button type="submit" id="submitBtn">Create workflow PR</button>
   </form>
 
   <div class="help">
@@ -601,7 +614,6 @@
       cadence: 'weekly',
       severity: 'low',
       confidence: 'medium',
-      maxIssues: 25,
       mergeStrategy: 'same-linter'
     };
 
@@ -620,7 +632,7 @@
 
     // Generate workflow YAML based on options
     function generateWorkflow(options) {
-      const { cadence, severity, confidence, maxIssues, mergeStrategy, disabledTools } = options;
+      const { cadence, severity, confidence, mergeStrategy, disabledTools } = options;
       const cron = getCronForCadence(cadence);
 
       // Check if using non-default values
@@ -628,7 +640,6 @@
         cadence !== DEFAULTS.cadence ||
         severity !== DEFAULTS.severity ||
         confidence !== DEFAULTS.confidence ||
-        maxIssues !== DEFAULTS.maxIssues ||
         mergeStrategy !== DEFAULTS.mergeStrategy ||
         disabledTools.length > 0;
 
@@ -711,7 +722,6 @@ jobs:
       const cadence = document.getElementById('cadence').value;
       const severity = document.getElementById('severity').value;
       const confidence = document.getElementById('confidence').value;
-      const maxIssues = parseInt(document.getElementById('maxIssues').value, 10) || 25;
       const mergeStrategy = document.getElementById('mergeStrategy').value;
 
       // Get disabled tools (unchecked checkboxes)
@@ -723,7 +733,7 @@ jobs:
         }
       });
 
-      return { cadence, severity, confidence, maxIssues, mergeStrategy, disabledTools };
+      return { cadence, severity, confidence, mergeStrategy, disabledTools };
     }
 
     const form = document.getElementById('installForm');
@@ -765,7 +775,6 @@ jobs:
         options.cadence !== DEFAULTS.cadence ||
         options.severity !== DEFAULTS.severity ||
         options.confidence !== DEFAULTS.confidence ||
-        options.maxIssues !== DEFAULTS.maxIssues ||
         options.mergeStrategy !== DEFAULTS.mergeStrategy ||
         options.disabledTools.length > 0;
 

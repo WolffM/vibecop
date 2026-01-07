@@ -26,7 +26,7 @@ import {
   generateIssueTitle,
   getLabelsForFinding,
 } from "./issue-formatter.js";
-import { meetsThresholds } from "./scoring.js";
+import { compareFindingsForSort, meetsThresholds } from "./scoring.js";
 import type { ExistingIssue, Finding, RunContext } from "./types.js";
 
 // ============================================================================
@@ -120,7 +120,7 @@ export async function processFindings(
   console.log(`Processing ${uniqueFindings.length} unique findings`);
 
   // Filter findings by threshold
-  const actionableFindings = uniqueFindings.filter((finding) =>
+  const filteredFindings = uniqueFindings.filter((finding) =>
     meetsThresholds(
       finding.severity,
       finding.confidence,
@@ -130,8 +130,12 @@ export async function processFindings(
   );
 
   stats.skippedBelowThreshold =
-    uniqueFindings.length - actionableFindings.length;
-  console.log(`${actionableFindings.length} findings meet thresholds`);
+    uniqueFindings.length - filteredFindings.length;
+  console.log(`${filteredFindings.length} findings meet thresholds`);
+
+  // Sort findings by severity (descending) then confidence (descending)
+  // This ensures high severity/confidence issues are created first when hitting max_new_per_run
+  const actionableFindings = [...filteredFindings].sort(compareFindingsForSort);
 
   // Detect which languages have findings (for conditional lang: labels)
   const languagesInRun = detectLanguagesInFindings(actionableFindings);
