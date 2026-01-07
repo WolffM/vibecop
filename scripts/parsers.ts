@@ -40,6 +40,33 @@ import {
 import type { Finding, JscpdOutput, Location, TscDiagnostic } from "./types.js";
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Shorten a semgrep rule ID for display in titles.
+ * Extracts the meaningful part from patterns like:
+ * - python.lang.security.audit.exec-detected.exec-detected -> exec-detected
+ * - javascript.lang.security.detect-child-process.detect-child-process -> detect-child-process
+ */
+function shortenSemgrepRuleId(ruleId: string): string {
+  // Split by dots and look for the last meaningful segment
+  const parts = ruleId.split(".");
+  
+  // If the last two parts are identical (common semgrep pattern), use just one
+  if (parts.length >= 2 && parts[parts.length - 1] === parts[parts.length - 2]) {
+    return parts[parts.length - 1];
+  }
+  
+  // Otherwise use the last part
+  if (parts.length > 0) {
+    return parts[parts.length - 1];
+  }
+  
+  return ruleId;
+}
+
+// ============================================================================
 // TypeScript Parser
 // ============================================================================
 
@@ -397,11 +424,12 @@ export interface SemgrepOutput {
 export function parseSemgrepOutput(output: SemgrepOutput): Finding[] {
   return parseResults(output.results, (result) => {
     const hasAutofix = !!result.extra.fix;
+    const shortRuleId = shortenSemgrepRuleId(result.check_id);
     return createFinding({
       result,
       tool: "semgrep",
       ruleId: result.check_id,
-      title: `Semgrep: ${result.check_id}`,
+      title: `Semgrep: ${shortRuleId}`,
       message: result.extra.message,
       severity: mapSemgrepSeverity(result.extra.severity),
       confidence: mapSemgrepConfidence(

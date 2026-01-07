@@ -13,6 +13,7 @@ import type {
   VibeCopConfig,
 } from "./types.js";
 import { shouldRunTool } from "./config-loader.js";
+import { shouldExcludePath } from "./tool-utils.js";
 import {
   runTrunk,
   runTsc,
@@ -230,6 +231,36 @@ export function executeTools(
     }
   }
 
-  console.log(`\nTotal raw findings: ${allFindings.length}\n`);
-  return allFindings;
+  // Filter out findings from excluded directories (e.g., .trunk, node_modules)
+  const filteredFindings = allFindings.filter((finding) => {
+    // Check if ANY location is in an excluded path
+    const allLocationsExcluded = finding.locations.every((loc) =>
+      shouldExcludePath(loc.path)
+    );
+    
+    if (allLocationsExcluded && finding.locations.length > 0) {
+      return false; // Exclude this finding
+    }
+    
+    // For findings with mixed locations, filter out excluded locations
+    if (finding.locations.some((loc) => shouldExcludePath(loc.path))) {
+      finding.locations = finding.locations.filter(
+        (loc) => !shouldExcludePath(loc.path)
+      );
+      // If no locations remain, exclude the finding
+      if (finding.locations.length === 0) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  const excludedCount = allFindings.length - filteredFindings.length;
+  if (excludedCount > 0) {
+    console.log(`  (Filtered ${excludedCount} findings from excluded directories)`);
+  }
+
+  console.log(`\nTotal raw findings: ${filteredFindings.length}\n`);
+  return filteredFindings;
 }
