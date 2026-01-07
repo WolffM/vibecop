@@ -242,7 +242,7 @@ runs:
         OUTPUT_DIR="${{ github.workspace }}/.vibecheck-output"
 
         if [ -f "$OUTPUT_DIR/results.llm.json" ]; then
-          echo "## 🛡️ vibeCheck Analysis Results" >> $GITHUB_STEP_SUMMARY
+          echo "## 🛡️ vibeCheck Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           TOTAL=$(jq '.summary.totalFindings // 0' $OUTPUT_DIR/results.llm.json)

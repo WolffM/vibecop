@@ -78,12 +78,12 @@ export function generateWorkflow(options: WorkflowOptions): string {
   }
 
   // Build the workflow
-  let yaml = `# vibeCheck Analysis Workflow
+  let yaml = `# vibeCheck Workflow
 #
 # This workflow runs vibeCheck static analysis on your repository.
 # For more info: https://github.com/WolffM/vibecheck
 
-name: vibeCheck Analysis
+name: vibeCheck
 
 ${onSection}
 
