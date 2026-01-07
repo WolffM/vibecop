@@ -359,6 +359,7 @@ function buildLocationSection(
 /**
  * Build the evidence section with code samples.
  * Includes file path context and syntax highlighting.
+ * Uses consistent header format: "📄 path/to/file.ext:lineNumber"
  */
 function buildEvidenceSection(finding: Finding): string {
   if (!finding.evidence?.snippet) {
@@ -385,17 +386,18 @@ function buildEvidenceSection(finding: Finding): string {
     // Get location for this snippet (fall back to first if not available)
     const loc = finding.locations[index] || primaryLoc;
 
-    // Build file header if we have a location and no embedded context
+    // Build consistent file header: "📄 path/to/file.ext:line"
+    // Skip if snippet already has embedded context
     let fileHeader = "";
     if (loc && !hasEmbeddedContext) {
-      const lineRange =
+      const lineInfo =
         loc.endLine && loc.endLine !== loc.startLine
           ? `${loc.startLine}-${loc.endLine}`
           : `${loc.startLine}`;
-      fileHeader = `**From \`${loc.path}\`** (line ${lineRange}):\n`;
+      fileHeader = `📄 ${loc.path}:${lineInfo}\n`;
     }
 
-    return `${fileHeader}\`\`\`${language}\n${content.trim()}\n\`\`\``;
+    return `\`\`\`${language}\n${fileHeader}${content.trim()}\n\`\`\``;
   });
 
   if (formattedSnippets.length === 1) {
@@ -434,15 +436,17 @@ function buildRuleLink(finding: Finding): string {
 
 /**
  * Build the references section with evidence links.
- * Formats URLs as readable markdown links.
+ * Formats URLs as readable markdown links and deduplicates them.
  */
 function buildReferencesSection(finding: Finding): string {
   if (!finding.evidence?.links || finding.evidence.links.length === 0) {
     return "";
   }
 
-  const linkList = finding.evidence.links
-    .filter((l) => l && l.startsWith("http"))
+  // Deduplicate URLs while preserving order
+  const uniqueUrls = [...new Set(finding.evidence.links.filter((l) => l && l.startsWith("http")))];
+
+  const linkList = uniqueUrls
     .map((url) => `- [${formatLinkTitle(url)}](${url})`)
     .join("\n");
 
