@@ -210,21 +210,26 @@ export function runTsc(rootPath: string): Finding[] {
     const testFixturesConfig = join(testFixturesDir, "tsconfig.json");
     if (existsSync(testFixturesConfig)) {
       console.log("  Also checking test-fixtures...");
-      // Run tsc from the test-fixtures directory to ensure proper resolution
-      // Use the TypeScript from the main project's node_modules
-      const tscPath = join(rootPath, "node_modules", ".bin", "tsc");
+      // Run from vibeCheck action's directory (parent of scripts/) to use its TypeScript
+      const vibeCheckRoot = join(__dirname, "..");
+      console.log(`  vibeCheck root: ${vibeCheckRoot}`);
+      console.log(`  tsconfig path: ${testFixturesConfig}`);
       const fixturesResult = spawnSync(
-        existsSync(tscPath) ? tscPath : "npx",
-        existsSync(tscPath)
-          ? ["--noEmit", "--pretty", "false"]
-          : ["tsc", "--noEmit", "--pretty", "false"],
+        "npx",
+        ["tsc", "--project", testFixturesConfig, "--noEmit", "--pretty", "false"],
         {
-          cwd: testFixturesDir,
+          cwd: vibeCheckRoot,
           encoding: "utf-8",
           shell: true,
         },
       );
       const fixturesOutput = fixturesResult.stdout + fixturesResult.stderr;
+      // Debug: show raw output
+      if (fixturesOutput.trim()) {
+        console.log(`  tsc stderr/stdout (first 300 chars): ${fixturesOutput.substring(0, 300)}`);
+      } else {
+        console.log("  tsc produced no output");
+      }
       const fixturesDiagnostics = parseTscTextOutput(fixturesOutput);
       console.log(`  Found ${fixturesDiagnostics.length} TypeScript errors in test-fixtures`);
       allFindings.push(...parseTscOutput(fixturesDiagnostics));
