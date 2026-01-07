@@ -166,6 +166,27 @@ export const COMMON_EXCLUDE_DIRS = [
 ];
 
 /**
+ * Check if a path should be excluded from analysis.
+ * Returns true if the path is inside any of the common exclude directories.
+ */
+export function shouldExcludePath(filePath: string): boolean {
+  const normalizedPath = filePath.replace(/\\/g, "/");
+  
+  for (const excludeDir of COMMON_EXCLUDE_DIRS) {
+    // Match paths that start with the exclude dir or contain it as a segment
+    if (
+      normalizedPath.startsWith(`${excludeDir}/`) ||
+      normalizedPath.includes(`/${excludeDir}/`) ||
+      normalizedPath === excludeDir
+    ) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Find existing directories from a list of common source directories.
  */
 export function findSourceDirs(
