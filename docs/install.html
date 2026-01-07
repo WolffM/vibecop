@@ -782,6 +782,31 @@ jobs:
     const updateBtn = document.getElementById('updateBtn');
     const copyNotice = document.getElementById('copyNotice');
 
+    // Cache for default branches to avoid repeated API calls
+    const branchCache = new Map();
+
+    // Fetch the default branch for a repository
+    async function getDefaultBranch(repo) {
+      if (branchCache.has(repo)) {
+        return branchCache.get(repo);
+      }
+
+      try {
+        const response = await fetch(`https://api.github.com/repos/${repo}`);
+        if (response.ok) {
+          const data = await response.json();
+          const branch = data.default_branch || 'main';
+          branchCache.set(repo, branch);
+          return branch;
+        }
+      } catch (err) {
+        console.warn('Could not fetch default branch, using main:', err);
+      }
+
+      // Fallback to main if API fails
+      return 'main';
+    }
+
     // Extract owner/repo from various input formats
     function parseRepo(input) {
       const trimmed = input.trim();
@@ -835,7 +860,7 @@ jobs:
     }
 
     // Add new workflow file
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const repo = parseRepo(repoInput.value);
@@ -844,12 +869,22 @@ jobs:
         return;
       }
 
-      const options = getOptions();
-      const workflowContent = generateWorkflow(options);
-      const encoded = encodeURIComponent(workflowContent);
-      const url = `https://github.com/${repo}/new/main?filename=.github/workflows/vibecheck.yml&value=${encoded}`;
+      // Show loading state
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Loading...';
 
-      window.location.href = url;
+      try {
+        const branch = await getDefaultBranch(repo);
+        const options = getOptions();
+        const workflowContent = generateWorkflow(options);
+        const encoded = encodeURIComponent(workflowContent);
+        const url = `https://github.com/${repo}/new/${branch}?filename=.github/workflows/vibecheck.yml&value=${encoded}`;
+
+        window.location.href = url;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add to repository';
+      }
     });
 
     // Update existing workflow - copy YAML and open edit page
@@ -860,27 +895,37 @@ jobs:
         return;
       }
 
-      const options = getOptions();
-      const workflowContent = generateWorkflow(options);
+      // Show loading state
+      updateBtn.disabled = true;
+      updateBtn.textContent = 'Loading...';
 
-      // Copy to clipboard
       try {
-        await navigator.clipboard.writeText(workflowContent);
-        showCopyNotice();
-      } catch (err) {
-        // Fallback for older browsers
-        const textarea = document.createElement('textarea');
-        textarea.value = workflowContent;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        showCopyNotice();
-      }
+        const branch = await getDefaultBranch(repo);
+        const options = getOptions();
+        const workflowContent = generateWorkflow(options);
 
-      // Open the edit page for the existing file
-      const editUrl = `https://github.com/${repo}/edit/main/.github/workflows/vibecheck.yml`;
-      window.open(editUrl, '_blank');
+        // Copy to clipboard
+        try {
+          await navigator.clipboard.writeText(workflowContent);
+          showCopyNotice();
+        } catch (err) {
+          // Fallback for older browsers
+          const textarea = document.createElement('textarea');
+          textarea.value = workflowContent;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          showCopyNotice();
+        }
+
+        // Open the edit page for the existing file
+        const editUrl = `https://github.com/${repo}/edit/${branch}/.github/workflows/vibecheck.yml`;
+        window.open(editUrl, '_blank');
+      } finally {
+        updateBtn.disabled = false;
+        updateBtn.textContent = 'Update existing workflow';
+      }
     });
 
   </script>
