@@ -217,8 +217,6 @@ export function runTsc(rootPath: string): Finding[] {
       console.log("  Also checking test-fixtures...");
       // Run from vibeCheck action's directory (parent of scripts/) to use its TypeScript
       const vibeCheckRoot = join(__dirname, "..");
-      console.log(`  vibeCheck root: ${vibeCheckRoot}`);
-      console.log(`  tsconfig path: ${testFixturesConfig}`);
       const fixturesResult = spawnSync(
         "npx",
         ["tsc", "--project", testFixturesConfig, "--noEmit", "--pretty", "false"],
@@ -229,12 +227,6 @@ export function runTsc(rootPath: string): Finding[] {
         },
       );
       const fixturesOutput = fixturesResult.stdout + fixturesResult.stderr;
-      // Debug: show raw output
-      if (fixturesOutput.trim()) {
-        console.log(`  tsc stderr/stdout (first 300 chars): ${fixturesOutput.substring(0, 300)}`);
-      } else {
-        console.log("  tsc produced no output");
-      }
       const fixturesDiagnostics = parseTscTextOutput(fixturesOutput);
       console.log(`  Found ${fixturesDiagnostics.length} TypeScript errors in test-fixtures`);
       allFindings.push(...parseTscOutput(fixturesDiagnostics));
