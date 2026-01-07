@@ -9,6 +9,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { deduplicateFindings, extractSublinter } from "../utils/fingerprints.js";
+import { arraysEqual } from "../utils/shared.js";
 import {
   buildFingerprintMap,
   closeIssue,
@@ -454,17 +455,6 @@ async function closeSupersededIssues(
       stats.closed++;
     }
   }
-}
-
-/**
- * Check if two arrays are equal (shallow comparison).
- */
-function arraysEqual<T>(a: T[], b: T[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
 }
 
 /**

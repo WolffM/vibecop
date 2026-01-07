@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { loadFindingsAndContext } from "../utils/cli-utils.js";
+import { severityToSarifLevel, groupBy } from "../utils/shared.js";
 import type {
   Finding,
   RunContext,
@@ -15,44 +16,16 @@ import type {
   SarifResult,
   SarifRule,
   SarifRun,
-  Severity,
 } from "../core/types.js";
 
 const SARIF_SCHEMA =
   "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
 
 /**
- * Map our severity to SARIF level.
- */
-function severityToSarifLevel(severity: Severity): SarifResult["level"] {
-  switch (severity) {
-    case "critical":
-    case "high":
-      return "error";
-    case "medium":
-      return "warning";
-    case "low":
-      return "note";
-    default:
-      return "warning";
-  }
-}
-
-/**
  * Group findings by tool for separate SARIF runs.
  */
 function groupFindingsByTool(findings: Finding[]): Map<string, Finding[]> {
-  const groups = new Map<string, Finding[]>();
-  for (const finding of findings) {
-    const tool = finding.tool;
-    const existing = groups.get(tool);
-    if (existing) {
-      existing.push(finding);
-    } else {
-      groups.set(tool, [finding]);
-    }
-  }
-  return groups;
+  return groupBy(findings, (f) => f.tool);
 }
 
 /**

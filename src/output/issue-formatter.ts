@@ -11,29 +11,15 @@ import {
 } from "../utils/fingerprints.js";
 import { getSuggestedFix } from "../utils/fix-templates.js";
 import { getRuleDocUrl } from "../utils/rule-docs.js";
+import {
+  getSeverityEmoji,
+  getLanguageFromPath,
+  getToolLanguage,
+} from "../utils/shared.js";
 import type { Finding, RunContext } from "../core/types.js";
 
-// ============================================================================
-// Severity Display
-// ============================================================================
-
-/**
- * Get a severity emoji for visual distinction.
- */
-export function getSeverityEmoji(severity: string): string {
-  switch (severity) {
-    case "critical":
-      return "🔴";
-    case "high":
-      return "🟠";
-    case "medium":
-      return "🟡";
-    case "low":
-      return "🔵";
-    default:
-      return "⚪";
-  }
-}
+// Re-export for backwards compatibility
+export { getSeverityEmoji, getToolLanguage };
 
 // ============================================================================
 // GitHub Link Formatting
@@ -56,57 +42,6 @@ export function formatGitHubLink(
 // ============================================================================
 // Text Utilities
 // ============================================================================
-
-/** File extension to language mapping (comprehensive for syntax highlighting) */
-const EXT_TO_LANGUAGE: Record<string, string> = {
-  ts: "typescript",
-  tsx: "typescript",
-  js: "javascript",
-  jsx: "javascript",
-  py: "python",
-  java: "java",
-  yml: "yaml",
-  yaml: "yaml",
-  json: "json",
-  sh: "bash",
-  bash: "bash",
-  md: "markdown",
-  go: "go",
-  rs: "rust",
-  rb: "ruby",
-  php: "php",
-  cs: "csharp",
-  cpp: "cpp",
-  c: "c",
-  sql: "sql",
-  xml: "xml",
-  html: "html",
-  css: "css",
-};
-
-/** Languages that we track for labeling (subset of all languages) */
-const TRACKED_LANGUAGES = new Set(["typescript", "javascript", "python", "java"]);
-
-/**
- * Get language from file extension.
- * @param path - File path to analyze
- * @param forLabeling - If true, only returns tracked languages (typescript/python/java)
- *                      If false, returns syntax highlighting language
- */
-function getLanguageFromPath(path: string, forLabeling = false): string | null {
-  const ext = path.split(".").pop()?.toLowerCase();
-  const lang = EXT_TO_LANGUAGE[ext || ""];
-  
-  if (!lang) return null;
-  
-  if (forLabeling) {
-    // For labeling, normalize js to typescript and only return tracked languages
-    const normalizedLang = lang === "javascript" ? "typescript" : lang;
-    return TRACKED_LANGUAGES.has(normalizedLang) ? normalizedLang : null;
-  }
-  
-  return lang;
-}
 
 /**
  * Format a URL into a readable link title.
@@ -198,32 +133,6 @@ export function generateIssueTitle(finding: Finding): string {
 // ============================================================================
 // Issue Labels
 // ============================================================================
-
-/**
- * Map tool name to language for labeling.
- * Returns null for tools that work across languages (semgrep, trunk, jscpd).
- */
-export function getToolLanguage(tool: string): string | null {
-  const toolLower = tool.toLowerCase();
-
-  // TypeScript/JavaScript tools
-  if (["tsc", "eslint", "dependency-cruiser", "knip"].includes(toolLower)) {
-    return "typescript";
-  }
-
-  // Python tools
-  if (["ruff", "mypy", "bandit"].includes(toolLower)) {
-    return "python";
-  }
-
-  // Java tools
-  if (["pmd", "spotbugs"].includes(toolLower)) {
-    return "java";
-  }
-
-  // Multi-language tools return null
-  return null;
-}
 
 /**
  * Get the dominant language from a finding's locations.

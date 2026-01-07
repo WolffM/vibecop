@@ -9,6 +9,7 @@
 
 import { createHash } from "node:crypto";
 import type { Finding } from "../core/types.js";
+import { groupBy } from "./shared.js";
 
 /**
  * Line bucket size for fingerprinting.
@@ -201,16 +202,7 @@ export function fingerprintsMatch(a: string, b: string): boolean {
 export function groupByFingerprint<T extends { fingerprint: string }>(
   items: T[],
 ): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const item of items) {
-    const existing = groups.get(item.fingerprint);
-    if (existing) {
-      existing.push(item);
-    } else {
-      groups.set(item.fingerprint, [item]);
-    }
-  }
-  return groups;
+  return groupBy(items, (item) => item.fingerprint);
 }
 
 /**
