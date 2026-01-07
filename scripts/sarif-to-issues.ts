@@ -146,7 +146,6 @@ export async function processFindings(
 
   // Build lookup maps from open issues for deduplication
   const toolRuleMap = new Map<string, ExistingIssue[]>(); // tool|ruleId -> issues
-  const sublinterMap = new Map<string, ExistingIssue[]>(); // trunk|sublinter -> issues
   const normalizedTitleMap = new Map<string, ExistingIssue[]>(); // normalized title -> issues
 
   // Helper to add issue to a map (stores array to handle duplicates)
@@ -191,44 +190,27 @@ export async function processFindings(
         const key = `${toolOrSublinter}|${ruleId}`;
         addToMap(toolRuleMap, key, issue);
       }
-
-      // Also map by sublinter for trunk findings
-      const sublinters = ["yamllint", "markdownlint", "checkov", "osv-scanner", "prettier"];
-      if (sublinters.includes(toolOrSublinter)) {
-        const sublinterKey = `trunk|${toolOrSublinter}`;
-        addToMap(sublinterMap, sublinterKey, issue);
-      }
     }
   }
 
   // Unified function to find matching issue using all strategies
-  function findMatchingIssue(finding: Finding): ExistingIssue | undefined {
+  function findMatchingIssue(finding: Finding): { issue: ExistingIssue | undefined; matchedBy: string } {
     // Strategy 1: Fingerprint (most reliable)
     const fpMatch = fingerprintMap.get(finding.fingerprint);
-    if (fpMatch) return fpMatch;
+    if (fpMatch) return { issue: fpMatch, matchedBy: "fingerprint" };
 
     // Strategy 2: Tool + Rule
     const toolRuleKey = `${finding.tool.toLowerCase()}|${finding.ruleId.toLowerCase()}`;
     const toolRuleMatch = getBestIssue(toolRuleMap, toolRuleKey);
-    if (toolRuleMatch) return toolRuleMatch;
+    if (toolRuleMatch) return { issue: toolRuleMatch, matchedBy: `tool+rule(${toolRuleKey})` };
 
-    // Strategy 3: Trunk sublinter
-    if (finding.tool.toLowerCase() === "trunk") {
-      const sublinterMatch = finding.title.match(/^(\w+)[\s:(]/);
-      if (sublinterMatch) {
-        const sublinterKey = `trunk|${sublinterMatch[1].toLowerCase()}`;
-        const match = getBestIssue(sublinterMap, sublinterKey);
-        if (match) return match;
-      }
-    }
-
-    // Strategy 4: Normalized title (for legacy issues without fingerprints)
+    // Strategy 3: Normalized title (for legacy issues without fingerprints)
     const newTitle = generateIssueTitle(finding);
     const normalizedNewTitle = normalizeIssueTitle(newTitle);
     const titleMatch = getBestIssue(normalizedTitleMap, normalizedNewTitle);
-    if (titleMatch) return titleMatch;
+    if (titleMatch) return { issue: titleMatch, matchedBy: `title(${normalizedNewTitle})` };
 
-    return undefined;
+    return { issue: undefined, matchedBy: "none" };
   }
 
   // Helper to register an issue in all lookup maps
@@ -240,15 +222,6 @@ export async function processFindings(
     const toolRuleKey = `${finding.tool.toLowerCase()}|${finding.ruleId.toLowerCase()}`;
     addToMap(toolRuleMap, toolRuleKey, issue);
 
-    // Add to sublinter map if applicable
-    if (finding.tool.toLowerCase() === "trunk") {
-      const sublinterMatch = finding.title.match(/^(\w+)[\s:(]/);
-      if (sublinterMatch) {
-        const sublinterKey = `trunk|${sublinterMatch[1].toLowerCase()}`;
-        addToMap(sublinterMap, sublinterKey, issue);
-      }
-    }
-
     // Add to normalized title map
     const normalizedTitle = normalizeIssueTitle(issue.title);
     addToMap(normalizedTitleMap, normalizedTitle, issue);
@@ -259,7 +232,9 @@ export async function processFindings(
     seenFingerprints.add(finding.fingerprint);
 
     // Use unified matching to find existing issue (checks ALL strategies)
-    const existingIssue = findMatchingIssue(finding);
+    const { issue: existingIssue, matchedBy } = findMatchingIssue(finding);
+
+    console.log(`  Finding: ${finding.ruleId} (${finding.tool}) - matched by: ${matchedBy}${existingIssue ? ` -> #${existingIssue.number}` : ""}`);
 
     if (existingIssue) {
       // Mark the issue's fingerprint as seen
