@@ -1,4 +1,4 @@
-name: vibecheck-action
+name: vibecheck-scan
 description: "Unified static analysis with intelligent issue creation for AI-driven development"
 author: "WolffM"
 
