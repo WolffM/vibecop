@@ -371,10 +371,15 @@ export const DEFAULT_LABELS = [
   // Java tools
   { name: "tool:pmd", color: "f97316", description: "Found by PMD" },
   { name: "tool:spotbugs", color: "dc2626", description: "Found by SpotBugs" },
+  // Rust tools
+  { name: "tool:clippy", color: "dea584", description: "Found by Clippy" },
+  { name: "tool:cargo-audit", color: "f74c00", description: "Found by cargo-audit" },
+  { name: "tool:cargo-deny", color: "b7410e", description: "Found by cargo-deny" },
   // Language labels (only used when multiple languages have findings)
   { name: "lang:typescript", color: "3178c6", description: "TypeScript finding" },
   { name: "lang:python", color: "3776ab", description: "Python finding" },
   { name: "lang:java", color: "b07219", description: "Java finding" },
+  { name: "lang:rust", color: "dea584", description: "Rust finding" },
 ];
 
 // ============================================================================

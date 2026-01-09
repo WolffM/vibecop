@@ -166,7 +166,7 @@ function getDominantLanguageFromLocations(
 
 /**
  * Detect which languages have findings in a set of findings.
- * Returns a set of language names (typescript, python, java).
+ * Returns a set of language names (typescript, python, java, rust).
  */
 export function detectLanguagesInFindings(findings: Finding[]): Set<string> {
   const languages = new Set<string>();

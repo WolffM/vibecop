@@ -190,12 +190,13 @@ const TRACKED_LANGUAGES = new Set([
   "javascript",
   "python",
   "java",
+  "rust",
 ]);
 
 /**
  * Get language from file extension.
  * @param path - File path to analyze
- * @param forLabeling - If true, only returns tracked languages (typescript/python/java)
+ * @param forLabeling - If true, only returns tracked languages (typescript/python/java/rust)
  *                      If false, returns syntax highlighting language
  */
 export function getLanguageFromPath(
@@ -236,6 +237,11 @@ export function getToolLanguage(tool: string): string | null {
   // Java tools
   if (["pmd", "spotbugs"].includes(toolLower)) {
     return "java";
+  }
+
+  // Rust tools
+  if (["clippy", "cargo-audit", "cargo-deny"].includes(toolLower)) {
+    return "rust";
   }
 
   // Multi-language tools return null
