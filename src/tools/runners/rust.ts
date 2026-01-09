@@ -201,8 +201,9 @@ export function runCargoDeny(rootPath: string, configPath?: string): Finding[] {
     for (const cargoDir of cargoDirs) {
       console.log(`  Running cargo-deny in ${relative(rootPath, cargoDir) || "."}`);
 
-      // --format is a global flag that comes before the subcommand
-      const args = ["deny", "--format", "json"];
+      // Build args: cargo deny [global options] check [check options]
+      // --format is global, --config is a check option
+      const args = ["deny", "--format", "json", "check"];
 
       // Look for deny.toml in the cargo directory first, then use provided configPath
       const localConfig = join(cargoDir, "deny.toml");
@@ -216,8 +217,7 @@ export function runCargoDeny(rootPath: string, configPath?: string): Finding[] {
         console.log("    No deny.toml config found");
       }
 
-      // Add the check subcommand after the global flags
-      args.push("check");
+      console.log(`    Command: cargo ${args.join(" ")}`);
 
       const result = spawnSync("cargo", args, {
         cwd: cargoDir,
