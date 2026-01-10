@@ -380,6 +380,8 @@ export const DEFAULT_LABELS = [
   { name: "lang:python", color: "3776ab", description: "Python finding" },
   { name: "lang:java", color: "b07219", description: "Java finding" },
   { name: "lang:rust", color: "dea584", description: "Rust finding" },
+  // Demo label for test-fixtures findings
+  { name: "demo", color: "7057ff", description: "Demo issue from test-fixtures" },
 ];
 
 // ============================================================================
